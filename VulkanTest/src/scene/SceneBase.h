@@ -53,6 +53,9 @@ public:
 	VkDebugUtilsMessengerEXT debugMessenger;
 
 	VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
+	VkDevice device; //logic device
+
+	VkQueue graphicsQueue;
 
 	const std::vector<const char*> validationLayers = {
 		"VK_LAYER_KHRONOS_validation"
@@ -76,6 +79,7 @@ public:
 		createInstance();
 		setupDebugMessenger();//callback
 		pickPhysicalDevice(); //选择物理设备
+		createLogicalDevice(); //创建逻辑设备
 	}
 
 
@@ -87,6 +91,8 @@ public:
 	}
  
 	virtual void cleanup(){
+		vkDestroyDevice(device, nullptr);
+
 		if (enableValidationLayers) {
 			DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
 		}
@@ -197,6 +203,46 @@ public:
 		}
 	}
 
+	virtual void createLogicalDevice()
+	{
+		QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+
+		VkDeviceQueueCreateInfo queueCreateInfo = {};
+		queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+		queueCreateInfo.queueFamilyIndex = indices.graphicsFamily;
+		queueCreateInfo.queueCount = 1;
+
+		float queuePriority = 1.0f;
+		queueCreateInfo.pQueuePriorities = &queuePriority;
+
+		VkPhysicalDeviceFeatures deviceFeatures{}; //指定设备特性。暂时为空
+
+		/* 填充VkDeviceCreateInfo结构体 */
+		VkDeviceCreateInfo createInfo{};
+		createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+
+		createInfo.pQueueCreateInfos = &queueCreateInfo;
+		createInfo.queueCreateInfoCount = 1;
+
+		createInfo.pEnabledFeatures = &deviceFeatures;
+
+		/* 对Device，同样可以和vulkan实例使用相同的校验层，不需要额外拓展支持 */
+		if (enableValidationLayers) {
+			createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
+			createInfo.ppEnabledLayerNames = validationLayers.data();
+		}
+		else {
+			createInfo.enabledLayerCount = 0;
+		}
+
+		/* 创建逻辑设备 */
+		if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create logical device!");
+		}
+
+		vkGetDeviceQueue(device, indices.graphicsFamily, 0, &graphicsQueue);
+	}
+
 	virtual bool isDeviceSuitable(VkPhysicalDevice device)
 	{
 		QueueFamilyIndices indices = findQueueFamilies(device);
@@ -223,6 +269,7 @@ public:
 			}
 			i++;
 		}
+		return indices;
 	}
 
 
