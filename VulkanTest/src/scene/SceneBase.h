@@ -6,8 +6,11 @@
 #include <iostream>
 #include <vector>
 #include <stdexcept>
+#include <cstring>
+#include <cstdlib>
 #include <functional>
 #include <cstdlib>
+#include <set>
 
 
 //是否启用校验层
@@ -37,10 +40,11 @@ void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT
 	作为函数返回结果的类型，索引-1表示没有找到满足需求的队列族
 */
 struct QueueFamilyIndices {
-	int graphicsFamily = -1;
+	uint32_t graphicsFamily = -1;//use for logicdevice
+	uint32_t presentFamily = -1;// use for window surface
 
 	bool isComplete() {
-		return graphicsFamily >= 0;
+		return graphicsFamily >= 0 && presentFamily >=0;
 	}
 };
 
@@ -51,11 +55,13 @@ public:
 	GLFWwindow* window;
 	VkInstance instance;
 	VkDebugUtilsMessengerEXT debugMessenger;
+	VkSurfaceKHR surface;
 
 	VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
 	VkDevice device; //logic device
 
 	VkQueue graphicsQueue;
+	VkQueue presentQueue;
 
 	const std::vector<const char*> validationLayers = {
 		"VK_LAYER_KHRONOS_validation"
@@ -78,6 +84,7 @@ public:
 	virtual void initVulkan(){
 		createInstance();
 		setupDebugMessenger();//callback
+		createSurface();//创建窗口平面
 		pickPhysicalDevice(); //选择物理设备
 		createLogicalDevice(); //创建逻辑设备
 	}
@@ -96,6 +103,7 @@ public:
 		if (enableValidationLayers) {
 			DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
 		}
+		vkDestroySurfaceKHR(instance, surface, nullptr);
 		vkDestroyInstance(instance, nullptr);
 
 		glfwDestroyWindow(window);
@@ -179,6 +187,12 @@ public:
 		}
 	}
 
+	virtual void createSurface() {
+		if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create window surface");
+		}
+	}
+
 	virtual void pickPhysicalDevice() {
 		uint32_t deviceCount = 0;
 		vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
@@ -207,13 +221,18 @@ public:
 	{
 		QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
 
-		VkDeviceQueueCreateInfo queueCreateInfo = {};
-		queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-		queueCreateInfo.queueFamilyIndex = indices.graphicsFamily;
-		queueCreateInfo.queueCount = 1;
+		std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
+		std::set<uint32_t> uniqueQueueFamilies = {indices.graphicsFamily, indices.presentFamily};
 
 		float queuePriority = 1.0f;
-		queueCreateInfo.pQueuePriorities = &queuePriority;
+		for (uint32_t queueFamily : uniqueQueueFamilies) {
+			VkDeviceQueueCreateInfo queueCreateInfo{};
+			queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+			queueCreateInfo.queueFamilyIndex = queueFamily;
+			queueCreateInfo.queueCount = 1;
+			queueCreateInfo.pQueuePriorities = &queuePriority;
+			queueCreateInfos.push_back(queueCreateInfo);
+		}
 
 		VkPhysicalDeviceFeatures deviceFeatures{}; //指定设备特性。暂时为空
 
@@ -221,10 +240,12 @@ public:
 		VkDeviceCreateInfo createInfo{};
 		createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 
-		createInfo.pQueueCreateInfos = &queueCreateInfo;
-		createInfo.queueCreateInfoCount = 1;
+		createInfo.pQueueCreateInfos = queueCreateInfos.data();
+		createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
 
 		createInfo.pEnabledFeatures = &deviceFeatures;
+
+		createInfo.enabledExtensionCount = 0;
 
 		/* 对Device，同样可以和vulkan实例使用相同的校验层，不需要额外拓展支持 */
 		if (enableValidationLayers) {
@@ -241,6 +262,7 @@ public:
 		}
 
 		vkGetDeviceQueue(device, indices.graphicsFamily, 0, &graphicsQueue);
+		vkGetDeviceQueue(device, indices.presentFamily, 0, &presentQueue);
 	}
 
 	virtual bool isDeviceSuitable(VkPhysicalDevice device)
@@ -260,9 +282,17 @@ public:
 		vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
 
 		int i = 0;
+		/* 寻找具备图形功能的拓展 */
 		for (const auto& queueFamily : queueFamilies) {
 			if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
 				indices.graphicsFamily = i;
+			}
+			/* 寻找具备window surface拓展 */
+			VkBool32 presentSupport = false;
+			vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presentSupport);
+
+			if (presentSupport) {
+				indices.presentFamily = i;
 			}
 			if (indices.isComplete()) {
 				break;
