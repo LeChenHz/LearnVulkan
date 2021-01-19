@@ -33,9 +33,9 @@ int main()
 	//glfwDestroyWindow(window);
 
 	
-	SceneBase app;
+	SceneBase* app = new SceneBase();
 	try{
-		app.run();
+		app->run();
 		}catch(const std::exception& e){
 			std::cerr << e.what() << std::endl;
 			return EXIT_FAILURE;
