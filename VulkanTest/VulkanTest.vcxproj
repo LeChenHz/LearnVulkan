@@ -163,6 +163,10 @@
     <ClInclude Include="src\scene\scene.h" />
     <ClInclude Include="src\scene\SceneBase.h" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="shaders\HelloTriangle\HelloTriangle.frag" />
+    <None Include="shaders\HelloTriangle\HelloTriangle.vert" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

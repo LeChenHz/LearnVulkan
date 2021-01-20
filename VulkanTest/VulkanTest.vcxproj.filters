@@ -31,6 +31,12 @@
     <Filter Include="源文件\scene\HelloTriangle">
       <UniqueIdentifier>{78188aca-3fe0-42df-8bd1-b487c226e50a}</UniqueIdentifier>
     </Filter>
+    <Filter Include="资源文件\shader">
+      <UniqueIdentifier>{a7575a8c-7bf0-426a-9fc6-a3762b881ebe}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="资源文件\shader\HelloTriangle">
+      <UniqueIdentifier>{bfa67fcd-a646-4192-8ec6-fc9918f8b3e8}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp">
@@ -50,5 +56,13 @@
     <ClInclude Include="src\scene\SceneBase.h">
       <Filter>头文件\scene</Filter>
     </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="shaders\HelloTriangle\HelloTriangle.frag">
+      <Filter>资源文件\shader\HelloTriangle</Filter>
+    </None>
+    <None Include="shaders\HelloTriangle\HelloTriangle.vert">
+      <Filter>资源文件\shader\HelloTriangle</Filter>
+    </None>
   </ItemGroup>
 </Project>
