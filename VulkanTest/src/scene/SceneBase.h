@@ -97,6 +97,7 @@ public:
 	VkExtent2D swapChainExtent;
 	std::vector<VkImageView> swapChainImageViews;
 
+	VkRenderPass renderPass;
 	VkPipelineLayout pipelineLayout;
 
 	const std::vector<const char*> validationLayers = {
@@ -129,6 +130,7 @@ public:
 		createLogicalDevice(); //创建逻辑设备
 		createSwapChain(); //创建交换链
 		createImageViews(); //创建图像视角
+		createRenderPass(); //创建渲染对象
 		createGraphicsPipeline(); //图形管线
 	}
 
@@ -142,6 +144,7 @@ public:
  
 	virtual void cleanup(){
 		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+		vkDestroyRenderPass(device, renderPass, nullptr);
 
 		for (auto imageView : swapChainImageViews)
 		{
@@ -395,6 +398,49 @@ public:
 				throw std::runtime_error("failed to create image views!");
 			}
 		}
+	}
+
+	virtual void createRenderPass() {
+		VkAttachmentDescription colorAttachment{};
+		colorAttachment.format = swapChainImageFormat;
+		colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+		colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+		/* 子流程可以直接引用若干个attachment 通过VkAttachmentReference,绘制简单三角形只需要一个子流程 */
+		VkAttachmentReference colorAttachmentRef = {};
+		colorAttachmentRef.attachment = 0; //指定该引用在attachmentdescription结构体数组中的索引
+		colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+		/* VkSubpassDescription描述子流程 */
+		VkSubpassDescription subpass{};
+		/*
+		VK_PIPELINE_BIND_POINT_COMPUTE specifies binding as a compute pipeline.
+
+		VK_PIPELINE_BIND_POINT_GRAPHICS specifies binding as a graphics pipeline.
+
+		VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR specifies binding as a ray tracing pipeline.
+		*/
+		subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+		subpass.colorAttachmentCount = 1;
+		subpass.pColorAttachments = &colorAttachmentRef;//和frag中layout(location = 0)out vec4 ourColor对应
+
+		VkRenderPassCreateInfo renderPassInfo{};
+		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+		renderPassInfo.attachmentCount = 1;
+		renderPassInfo.pAttachments = &colorAttachment;
+		renderPassInfo.subpassCount = 1;
+		renderPassInfo.pSubpasses = &subpass;
+
+		if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS)
+		{
+			throw std::runtime_error("failed to create render pass!");
+		}
+
 	}
 
 	virtual void createGraphicsPipeline() {
