@@ -1,6 +1,7 @@
 #pragma once
 #include "../SceneBase.h"
 
-class HelloTriangleApplication :public SceneBase {
+class HelloTriangle :public SceneBase {
 
+	void drawFrame();
 };
