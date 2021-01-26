@@ -2,6 +2,7 @@
 #pragma once
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
+#include <glm/glm.hpp>
 
 #include <iostream>
 #include <fstream>
@@ -13,6 +14,7 @@
 #include <functional>
 #include <cstdlib>
 #include <set>
+#include <array>
 
 
 //是否启用校验层
@@ -23,6 +25,68 @@ const bool enableValidationLayers = true;
 #endif
 
 const int MAX_FRAMES_IN_FLIGHT = 2; //最大并行渲染帧数
+
+struct Vertex {
+	glm::vec2 pos;
+	glm::vec3 color;
+
+	/* 返回vertex结构体的顶点数据存放方式 */
+	static VkVertexInputBindingDescription getBindingDescription() {
+		VkVertexInputBindingDescription bindingDescription = {};
+		/* 
+			每个顶点的所有数据被包装到同一个结构体数组
+			binding 指定保定描述信息在绑定描述信息数组中的索引（即第几个绑定描述信息）
+			stride 指定条目之间跨距（字节）
+			inputRate 指定条目的粒度，有：
+			- VK_VERTEX_INPUT_RATE_VERTEX：以一个顶点数据作为条目的粒度
+			- VK_VERTEX_INPUT_RATE_INSTANCE：以一个实例数据作为条目的粒度
+
+		*/
+		bindingDescription.binding = 0;
+		bindingDescription.stride = sizeof(Vertex);
+		bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+		return bindingDescription;
+	}
+
+	/*
+		VkVertexInputAttributeDescription结构体描述顶点属性
+		- binding 指定顶点数据来源（从上面的binding）
+		- location 指定在顶点着色器中的存放位置，和着色器对应
+		- format 指定数据类型,常见的有：
+			float：VK_FORMAT_R32_SFLOAT
+			vec2：VK_FORMAT_R32G32_SFLOAT
+			vec3：VK_FORMAT_R32G32B32_SFLOAT
+			vec4：VK_FORMAT_R32G32B32A32_SFLOAT
+			若指定格式通道数小于着色器中的定义BGA通道会使用（0,0,1）作为多出来的通道值，还有用UINT,SINT的，比如：
+			ivec2：VK_FORMAT_R32G32_SINT，具有两个分量的，每个分量类型是32位符号整型的向量
+			uvec4：VK_FORMAT_R32G32B32A32_UINT，具有四个分量的，每个分量类型是32位无符号整型的向量
+			double：VK_FORMAT_R64_SFLOAT，一个双精度(64位)浮点数
+		- offset 指定了开始读取顶点属性数据的位置（由于顶点数据包含了多钟属性，并不都是存储在数组开始位置）
+	*/
+	static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions() {
+		std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions = {};
+
+		attributeDescriptions[0].binding = 0;
+		attributeDescriptions[0].location = 0;
+		attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+		attributeDescriptions[0].offset = offsetof(Vertex, pos);
+
+		attributeDescriptions[1].binding = 0;
+		attributeDescriptions[1].location = 1;
+		attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+		attributeDescriptions[1].offset = offsetof(Vertex, color);
+
+		return attributeDescriptions;
+	}
+};
+
+const std::vector<Vertex> vertices = {
+	{{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+	{{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
+	{{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
+};
+
 
 /*
 	作为函数返回结果的类型，索引-1表示没有找到满足需求的队列族
@@ -69,12 +133,17 @@ public:
 	VkPipeline graphicsPipeline;
 
 	VkCommandPool commandPool;
+
+	VkBuffer vertexBuffer;
+	VkDeviceMemory vertexBufferMemory;
+
 	std::vector<VkCommandBuffer> commandBuffers;
 
 	/* 每一帧独立的信号量 */
 	std::vector<VkSemaphore> imageAvailableSemaphores;
 	std::vector<VkSemaphore> renderFinishedSemaphores;
 	std::vector<VkFence> inFlightFences;
+	std::vector<VkFence> imagesInFlight;
 	size_t currentFrame = 0;
 
 	bool framebufferResized = false;//窗口大小是否改变
@@ -119,6 +188,7 @@ public:
 		createGraphicsPipeline(); //图形管线
 		createFramebuffers(); //帧缓冲
 		createCommandPool(); //指令池
+		createVertexBuffer(); //顶点缓冲
 		createCommandBuffers(); //指令缓冲对象
 		createSyncObjects(); //用于同步控制
 	}
@@ -191,6 +261,9 @@ public:
 
 	virtual void cleanup(){
 		cleanupSwapChain();
+
+		vkDestroyBuffer(device, vertexBuffer, nullptr);
+		vkFreeMemory(device, vertexBufferMemory, nullptr);
 
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 			vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
@@ -554,11 +627,21 @@ public:
 
 		VkPipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo, fragShaderStageInfo };
 
-		/* 顶点输入,前一章直接在着色器输入顶点数据，这里为0 */
+		/* 顶点输入 */
 		VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
 		vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+		/*
+		直接在着色写入顶点数据时的设定
 		vertexInputInfo.vertexBindingDescriptionCount = 0;
 		vertexInputInfo.vertexAttributeDescriptionCount = 0;
+		*/
+		auto bindingDescription = Vertex::getBindingDescription();
+		auto attributeDescriptions = Vertex::getAttributeDescriptions();
+
+		vertexInputInfo.vertexBindingDescriptionCount = 1;
+		vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
+		vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+		vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
 
 		/* 输入装配：图元装配方式及是否重用 */
 		VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
@@ -694,6 +777,76 @@ public:
 		}
 	}
 
+	virtual void createVertexBuffer() {
+		/* 
+			usage 指定缓冲中数据的用途，这里用作存储顶点数据
+			sharingMode 和交换链图像一样，缓冲可以被特定的队列族拥有，也可以多个族之间共享。我们只用1个队列选择独有模式
+			flags 配置缓冲的内存稀疏程度，0为默认值
+		*/
+		VkBufferCreateInfo bufferInfo{};
+		bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		bufferInfo.size = sizeof(vertices[0]) * vertices.size();
+		bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+		bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+		if (vkCreateBuffer(device, &bufferInfo, nullptr, &vertexBuffer) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create vertex buffer!");
+		}
+
+		/* 分配内存 */
+		VkMemoryRequirements memRequirements;
+		/*
+			VkMemoryRequirements有三个成员变量
+			size 字节大小
+			alignment 缓冲在实际被分配的内存中的开始位置，依赖于bufferinfo.usage和bufferinfo.flags
+			memoryTypeBlts 指示适合该缓冲使用的内存类型的位域（显卡可以分配不同类型的内存作为缓存，不同类型的内存
+			允许进行的操作以及操作效率不同，添加findMemoryType来做这件事）
+		*/
+		vkGetBufferMemoryRequirements(device, vertexBuffer, &memRequirements);
+
+		VkMemoryAllocateInfo allocInfo{};
+		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+		allocInfo.allocationSize = memRequirements.size;
+		allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+		if (vkAllocateMemory(device, &allocInfo, nullptr, &vertexBufferMemory) != VK_SUCCESS) {
+			throw std::runtime_error("failed to allocate vertex buffer memory!");
+		}
+
+		/* 第四个参数为偏移值，偏移值要满足被memRequirements.alignment整除 */
+		vkBindBufferMemory(device, vertexBuffer, vertexBufferMemory, 0);
+
+		/* 将顶点数据复制到缓冲中 */
+		void* data;
+		/*
+			将缓冲关联的内存映射到CPU可以访问的内存，该函数允许通过给定的内存偏移值和内存大小访问特定内存资源
+			偏移值：0
+			内存大小：bufferinfo.size（特殊值VK_WHOLE_SIZE可以用来映射整个内存）
+			倒数第二个参数：指定一个标记，目前没用处，社会为0
+		*/
+		vkMapMemory(device, vertexBufferMemory, 0, bufferInfo.size, 0, &data);
+		memcpy(data, vertices.data(), (size_t)bufferInfo.size);
+		/* 复制完毕后结束映射 */
+		vkUnmapMemory(device, vertexBufferMemory);
+	}
+
+	virtual uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
+		/* 查询物理设备可用的内存类型,VkPhysicalDeviceMemoryProperties结构体包含memoryTypes 和 memoryHeaps两数组，
+		其中后者每个元素是一种内存来源，如显存、显存用尽后的位域主内存中的交换空间等*/
+		VkPhysicalDeviceMemoryProperties memProperties;
+		vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
+
+		for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++)
+		{
+			/* 检查相应内存类型的 位域 是否为1，以及满足一些我们需要的附加条件 */
+			if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
+				return i;
+			}
+		}
+
+		throw std::runtime_error("failed to find suitable memory type!");
+	}
+
 	virtual void createCommandBuffers() {
 		commandBuffers.resize(swapChainFramebuffers.size());
 
@@ -711,8 +864,8 @@ public:
 		for (size_t i = 0; i < commandBuffers.size(); i++) {
 			VkCommandBufferBeginInfo beginInfo = {};
 			beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-			beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
-			beginInfo.pInheritanceInfo = nullptr;
+			//beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+			//beginInfo.pInheritanceInfo = nullptr;
 
 			if (vkBeginCommandBuffer(commandBuffers[i], &beginInfo) != VK_SUCCESS) {
 				throw std::runtime_error("failed to begin recording command buffer!");
@@ -735,8 +888,18 @@ public:
 				/* bind图形管线,第二个参数可以指定是图形管线还是计算管线 */
 				vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
+				/* 绑定顶点缓冲，将顶点数据从CPU传到GPU bind vertex buffers */
+				VkBuffer vertexBuffers[] = {vertexBuffer};
+				VkDeviceSize offsets[] = { 0 };
+				/*
+					vkCmdBindVertexBuffers 来绑定顶点缓冲
+					第二第三个参数：指定偏移值以及要绑定的顶点缓冲的数量；
+					第四个参数：指定需要绑定的顶点缓冲数组；
+					最后：顶点数据在顶点缓冲中的偏移值数组；
+				*/
+				vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
 				/* 三角形绘制draw call */
-				vkCmdDraw(commandBuffers[i], 3, 1, 0, 0);
+				vkCmdDraw(commandBuffers[i], static_cast<uint32_t>(vertices.size()), 1, 0, 0);
 
 			vkCmdEndRenderPass(commandBuffers[i]);
 
@@ -750,6 +913,7 @@ public:
 		imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
 		renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
 		inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
+		imagesInFlight.resize(swapChainImages.size(), VK_NULL_HANDLE);
 
 		VkSemaphoreCreateInfo semaphoreInfo = {};
 		semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -772,7 +936,7 @@ public:
 	virtual void drawFrame(){
 		/* 等待一组栅栏中的一个或者全部栅栏发出信号，VK_TRUE是否等待所有fence，但是我们这里只引入了一个fence，无所谓TRUE */
 		vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, std::numeric_limits<uint64_t>::max());
-		vkResetFences(device, 1, &inFlightFences[currentFrame]);//置为未发射状态
+		
 		uint32_t imageIndex;
 		/*第三个参数是图像获取的超时时间 */
 		VkResult result = vkAcquireNextImageKHR(device, swapChain, std::numeric_limits<uint64_t>::max(), imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
@@ -785,6 +949,13 @@ public:
 		else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
 			throw std::runtime_error("failed to acquire swap chain image!");
 		}
+
+		/* 检查是否之前正在渲染的frame正在使用这个image */
+		if (imagesInFlight[imageIndex] != VK_NULL_HANDLE) {
+			vkWaitForFences(device, 1, &imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
+		}
+		/* 标记目前的image由当前的帧缓冲frame使用 */
+		imagesInFlight[imageIndex] = inFlightFences[currentFrame];
 
 
 		VkSubmitInfo submitInfo = {};
@@ -803,6 +974,8 @@ public:
 		VkSemaphore signalSemaphores[] = {renderFinishedSemaphores[currentFrame]};
 		submitInfo.signalSemaphoreCount = 1;
 		submitInfo.pSignalSemaphores = signalSemaphores;
+
+		vkResetFences(device, 1, &inFlightFences[currentFrame]);//置为未发射状态
 
 		/* 正式提交指令缓冲给图形指令队列 */
 		if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS) {
