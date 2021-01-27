@@ -82,9 +82,14 @@ struct Vertex {
 };
 
 const std::vector<Vertex> vertices = {
-	{{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-	{{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
-	{{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
+	{{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+	{{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
+	{{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
+	{{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}
+};
+
+const std::vector<uint16_t> indices = {
+	0,1,2,2,3,0
 };
 
 
@@ -136,6 +141,8 @@ public:
 
 	VkBuffer vertexBuffer;
 	VkDeviceMemory vertexBufferMemory;
+	VkBuffer indexBuffer;
+	VkDeviceMemory indexBufferMemory;
 
 	std::vector<VkCommandBuffer> commandBuffers;
 
@@ -189,6 +196,7 @@ public:
 		createFramebuffers(); //帧缓冲
 		createCommandPool(); //指令池
 		createVertexBuffer(); //顶点缓冲
+		createIndexBuffer();//索引缓冲
 		createCommandBuffers(); //指令缓冲对象
 		createSyncObjects(); //用于同步控制
 	}
@@ -262,8 +270,12 @@ public:
 	virtual void cleanup(){
 		cleanupSwapChain();
 
+		vkDestroyBuffer(device, indexBuffer, nullptr);
+		vkFreeMemory(device, indexBufferMemory, nullptr);
+
 		vkDestroyBuffer(device, vertexBuffer, nullptr);
 		vkFreeMemory(device, vertexBufferMemory, nullptr);
+
 
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 			vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
@@ -793,15 +805,35 @@ public:
 			内存大小：bufferinfo.size（特殊值VK_WHOLE_SIZE可以用来映射整个内存）
 			倒数第二个参数：指定一个标记，目前没用处，社会为0
 		*/
-		vkMapMemory(device, vertexBufferMemory, 0, bufferSize, 0, &data);
+		vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
 		memcpy(data, vertices.data(), (size_t)bufferSize);
 		/* 复制完毕后结束映射 */
-		vkUnmapMemory(device, vertexBufferMemory);
+		vkUnmapMemory(device, stagingBufferMemory);
 
 		/* 显卡读取快的真正缓冲 */
 		createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer, vertexBufferMemory);
 
 		copyBuffer(stagingBuffer, vertexBuffer, bufferSize);
+
+		vkDestroyBuffer(device, stagingBuffer, nullptr);
+		vkFreeMemory(device, stagingBufferMemory, nullptr);
+	}
+
+	virtual void createIndexBuffer() {
+		VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
+
+		VkBuffer stagingBuffer;
+		VkDeviceMemory stagingBufferMemory;
+		createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+
+		void* data;
+		vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
+		memcpy(data, indices.data(), (size_t)bufferSize);
+		vkUnmapMemory(device, stagingBufferMemory);
+		/* 注意用的是VK_BUFFER_USAGE_INDEX_BUFFER_BIT*/
+		createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexBuffer, indexBufferMemory);
+
+		copyBuffer(stagingBuffer, indexBuffer, bufferSize);
 
 		vkDestroyBuffer(device, stagingBuffer, nullptr);
 		vkFreeMemory(device, stagingBufferMemory, nullptr);
@@ -960,8 +992,22 @@ public:
 					最后：顶点数据在顶点缓冲中的偏移值数组；
 				*/
 				vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
+
+				/* 使用索引缓冲 */
+				vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+
 				/* 三角形绘制draw call */
-				vkCmdDraw(commandBuffers[i], static_cast<uint32_t>(vertices.size()), 1, 0, 0);
+				//vkCmdDraw(commandBuffers[i], static_cast<uint32_t>(vertices.size()), 1, 0, 0);
+				/*
+					索引方式绘制
+					没有使用instance绘制，实例个数为1
+					倒数第三参数是偏移值：偏移值用于指定显卡开始读取索引的位置，偏移值为1对应索引数据中的第二个索引
+					倒数第二个：检索顶点数据前加到顶点索引上的数值
+					最后：第一个被渲染的实例的ID，这里没有使用
+
+				*/
+				vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
+
 
 			vkCmdEndRenderPass(commandBuffers[i]);
 
