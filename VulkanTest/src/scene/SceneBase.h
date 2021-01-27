@@ -778,19 +778,50 @@ public:
 	}
 
 	virtual void createVertexBuffer() {
-		/* 
-			usage 指定缓冲中数据的用途，这里用作存储顶点数据
+		VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
+
+		VkBuffer stagingBuffer;/* 暂存缓冲，CPU可见的 */
+		VkDeviceMemory stagingBufferMemory;
+		createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+																	VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+
+		/* 将顶点数据复制到缓冲中 */
+		void* data;
+		/*
+			将缓冲关联的内存映射到CPU可以访问的内存，该函数允许通过给定的内存偏移值和内存大小访问特定内存资源
+			偏移值：0
+			内存大小：bufferinfo.size（特殊值VK_WHOLE_SIZE可以用来映射整个内存）
+			倒数第二个参数：指定一个标记，目前没用处，社会为0
+		*/
+		vkMapMemory(device, vertexBufferMemory, 0, bufferSize, 0, &data);
+		memcpy(data, vertices.data(), (size_t)bufferSize);
+		/* 复制完毕后结束映射 */
+		vkUnmapMemory(device, vertexBufferMemory);
+
+		/* 显卡读取快的真正缓冲 */
+		createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer, vertexBufferMemory);
+
+		copyBuffer(stagingBuffer, vertexBuffer, bufferSize);
+
+		vkDestroyBuffer(device, stagingBuffer, nullptr);
+		vkFreeMemory(device, stagingBufferMemory, nullptr);
+	}
+
+	/* 用于createVertexBuffer中，用于辅助创建缓冲 */
+	virtual void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory) {
+		/*
+			usage 指定缓冲中数据的用途，比如VK_BUFFER_USAGE_VERTEX_BUFFER_BIT用作存储顶点数据
 			sharingMode 和交换链图像一样，缓冲可以被特定的队列族拥有，也可以多个族之间共享。我们只用1个队列选择独有模式
 			flags 配置缓冲的内存稀疏程度，0为默认值
 		*/
 		VkBufferCreateInfo bufferInfo{};
 		bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		bufferInfo.size = sizeof(vertices[0]) * vertices.size();
-		bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+		bufferInfo.size = size;
+		bufferInfo.usage = usage;
 		bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-		if (vkCreateBuffer(device, &bufferInfo, nullptr, &vertexBuffer) != VK_SUCCESS) {
-			throw std::runtime_error("failed to create vertex buffer!");
+		if (vkCreateBuffer(device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create buffer!");
 		}
 
 		/* 分配内存 */
@@ -802,32 +833,63 @@ public:
 			memoryTypeBlts 指示适合该缓冲使用的内存类型的位域（显卡可以分配不同类型的内存作为缓存，不同类型的内存
 			允许进行的操作以及操作效率不同，添加findMemoryType来做这件事）
 		*/
-		vkGetBufferMemoryRequirements(device, vertexBuffer, &memRequirements);
+		vkGetBufferMemoryRequirements(device, buffer, &memRequirements);
 
 		VkMemoryAllocateInfo allocInfo{};
 		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 		allocInfo.allocationSize = memRequirements.size;
-		allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+		allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
 
-		if (vkAllocateMemory(device, &allocInfo, nullptr, &vertexBufferMemory) != VK_SUCCESS) {
-			throw std::runtime_error("failed to allocate vertex buffer memory!");
+		if (vkAllocateMemory(device, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) {
+			throw std::runtime_error("failed to allocate buffer memory!");
 		}
 
 		/* 第四个参数为偏移值，偏移值要满足被memRequirements.alignment整除 */
-		vkBindBufferMemory(device, vertexBuffer, vertexBufferMemory, 0);
+		vkBindBufferMemory(device, buffer, bufferMemory, 0);
+	}
 
-		/* 将顶点数据复制到缓冲中 */
-		void* data;
-		/*
-			将缓冲关联的内存映射到CPU可以访问的内存，该函数允许通过给定的内存偏移值和内存大小访问特定内存资源
-			偏移值：0
-			内存大小：bufferinfo.size（特殊值VK_WHOLE_SIZE可以用来映射整个内存）
-			倒数第二个参数：指定一个标记，目前没用处，社会为0
-		*/
-		vkMapMemory(device, vertexBufferMemory, 0, bufferInfo.size, 0, &data);
-		memcpy(data, vertices.data(), (size_t)bufferInfo.size);
-		/* 复制完毕后结束映射 */
-		vkUnmapMemory(device, vertexBufferMemory);
+	/* 
+		内存传输指令。通常为使用该传输指令的指令缓冲创建新的commandPool对象
+		（因为内存传输指令生命周期短，使用独立的更好优化） 
+		若创建新的commandpool需要指定VK_COMMAND_POOL_CREATE_TRANSIENT_BIT标记（这里没有用新的commandpool）
+	*/
+	virtual void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
+		VkCommandBufferAllocateInfo allocInfo = {};
+		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		allocInfo.commandPool = commandPool;
+		allocInfo.commandBufferCount = 1;
+
+		VkCommandBuffer commandBuffer;
+		vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer);
+
+		VkCommandBufferBeginInfo beginInfo = {};
+		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		/* 只使用一次，因此不用VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT */
+		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+		vkBeginCommandBuffer(commandBuffer, &beginInfo);
+
+			VkBufferCopy copyRegion{};
+			copyRegion.size = size;
+			/*
+				最后一个参数指定复制操作的源source缓冲位置偏移，目的dst缓冲位置偏移以及复制的数组长度
+			*/
+			vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
+
+		vkEndCommandBuffer(commandBuffer);
+
+		/* 上述步骤完成了指令缓冲的记录操作，接下来提交指令缓冲完成传输操作 */
+		VkSubmitInfo submitInfo{};
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		submitInfo.commandBufferCount = 1;
+		submitInfo.pCommandBuffers = &commandBuffer;
+
+		vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+		vkQueueWaitIdle(graphicsQueue);//同样可以用vkWaitForFence配合栅栏完成，在同步多个不同的内存时使用
+
+		/* 清除指令缓冲对象 */
+		vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
 	}
 
 	virtual uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
