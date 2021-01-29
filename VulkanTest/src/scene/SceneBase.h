@@ -195,15 +195,23 @@ public:
 		createSwapChain(); //创建交换链
 		createImageViews(); //创建图像视角
 		createRenderPass(); //创建渲染对象
+		createDescriptorSetLayout();//描述符布局
 		createGraphicsPipeline(); //图形管线
 		createFramebuffers(); //帧缓冲
 		createCommandPool(); //指令池
 		createVertexBuffer(); //顶点缓冲
 		createIndexBuffer();//索引缓冲
+		createUniformBuffers();//uniform缓冲
+		createDescriptorPool();//描述符池
+		createDescriptorSets();//描述符集
 		createCommandBuffers(); //指令缓冲对象
 		createSyncObjects(); //用于同步控制
 	}
 
+	virtual void createDescriptorSetLayout() {}
+	virtual void createUniformBuffers() {}
+	virtual void createDescriptorPool() {}
+	virtual void createDescriptorSets() {}
 
 	virtual void mainLoop(){
 		while (!glfwWindowShouldClose(window))
@@ -318,6 +326,9 @@ public:
 		createRenderPass();
 		createGraphicsPipeline();
 		createFramebuffers();
+		createUniformBuffers();
+		createDescriptorPool();
+		createDescriptorSets();
 		createCommandBuffers();
 	}
 

@@ -13,14 +13,19 @@ class UniformBuffers :public SceneBase {
 	std::vector<VkBuffer> uniformBuffers;
 	std::vector<VkDeviceMemory> uniformBuffersMemory;
 
+	VkDescriptorPool descriptorPool;
+	std::vector<VkDescriptorSet> descriptorSets;
 
-	void initVulkan();
 	void cleanup();
 	void createDescriptorSetLayout();
 	void createGraphicsPipeline();
 	void createUniformBuffers();
+	void createDescriptorPool();
+	void createDescriptorSets();
+	void createCommandBuffers();
 	void drawFrame();
 	void updateUniformBuffer(uint32_t currentImage);
+
 
 	
 };

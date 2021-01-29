@@ -37,6 +37,15 @@
     <Filter Include="资源文件\shader\HelloTriangle">
       <UniqueIdentifier>{bfa67fcd-a646-4192-8ec6-fc9918f8b3e8}</UniqueIdentifier>
     </Filter>
+    <Filter Include="头文件\scene\UniformBuffers">
+      <UniqueIdentifier>{3b573090-1d73-4923-8129-724de192fd17}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="源文件\scene\UniformBuffers">
+      <UniqueIdentifier>{3edc875f-284e-4306-b371-5cd87f01d138}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="资源文件\shader\UniformBuffers">
+      <UniqueIdentifier>{20eccc60-0586-47e7-a780-1ffd7a3063a4}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp">
@@ -44,6 +53,9 @@
     </ClCompile>
     <ClCompile Include="src\scene\HelloTriangle\HelloTriangle.cpp">
       <Filter>源文件\scene\HelloTriangle</Filter>
+    </ClCompile>
+    <ClCompile Include="src\scene\UniformBuffers\UniformBuffers.cpp">
+      <Filter>源文件\scene\UniformBuffers</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -56,6 +68,9 @@
     <ClInclude Include="src\scene\SceneBase.h">
       <Filter>头文件\scene</Filter>
     </ClInclude>
+    <ClInclude Include="src\scene\UniformBuffers\UniformBuffers.h">
+      <Filter>头文件\scene\UniformBuffers</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="shaders\HelloTriangle\HelloTriangle.frag">
@@ -63,6 +78,12 @@
     </None>
     <None Include="shaders\HelloTriangle\HelloTriangle.vert">
       <Filter>资源文件\shader\HelloTriangle</Filter>
+    </None>
+    <None Include="shaders\UniformBuffers\UniformBuffers.frag">
+      <Filter>资源文件\shader\UniformBuffers</Filter>
+    </None>
+    <None Include="shaders\UniformBuffers\UniformBuffers.vert">
+      <Filter>资源文件\shader\UniformBuffers</Filter>
     </None>
   </ItemGroup>
 </Project>

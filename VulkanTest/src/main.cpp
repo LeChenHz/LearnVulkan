@@ -33,7 +33,8 @@ int main()
 	//glfwDestroyWindow(window);
 
 	
-	SceneBase* app = new SceneBase();
+	//SceneBase* app = new SceneBase();
+	UniformBuffers* app = new UniformBuffers();
 	try{
 		app->run();
 		}catch(const std::exception& e){

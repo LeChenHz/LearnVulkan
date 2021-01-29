@@ -157,15 +157,19 @@
   <ItemGroup>
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\scene\HelloTriangle\HelloTriangle.cpp" />
+    <ClCompile Include="src\scene\UniformBuffers\UniformBuffers.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\scene\HelloTriangle\HelloTriangle.h" />
     <ClInclude Include="src\scene\scene.h" />
     <ClInclude Include="src\scene\SceneBase.h" />
+    <ClInclude Include="src\scene\UniformBuffers\UniformBuffers.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="shaders\HelloTriangle\HelloTriangle.frag" />
     <None Include="shaders\HelloTriangle\HelloTriangle.vert" />
+    <None Include="shaders\UniformBuffers\UniformBuffers.frag" />
+    <None Include="shaders\UniformBuffers\UniformBuffers.vert" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
