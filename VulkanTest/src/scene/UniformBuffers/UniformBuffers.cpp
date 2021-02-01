@@ -4,6 +4,8 @@
 void UniformBuffers::cleanup() {
 	cleanupSwapChain();
 
+	vkDestroyImage(device, textureImage, nullptr);
+	vkFreeMemory(device, textureImageMemory, nullptr);
 	vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 	vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
 	/* 清理uniform缓冲对象 */
@@ -329,6 +331,236 @@ void UniformBuffers::createCommandBuffers() {
 			throw std::runtime_error("failed to record command buffer!");
 		}
 	}
+}
+
+void UniformBuffers::createTextureImage() {
+	int texWidth, texHeight, texChannels;
+	stbi_uc* pixels = stbi_load("../VulkanTest/res/texture/Texture_test.jpg", &texWidth, &texHeight, &texChannels,
+								STBI_rgb_alpha);
+	VkDeviceSize imageSize = texWidth * texHeight * 4;
+
+	if (!pixels) {
+		throw std::runtime_error("failed to load texture image!");
+	}
+
+	/* 创建暂存缓冲 */
+	VkBuffer stagingBuffer;
+	VkDeviceMemory stagingBufferMemory;
+	createBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+															  VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,stagingBuffer,stagingBufferMemory);
+
+	void* data;
+	vkMapMemory(device, stagingBufferMemory, 0, imageSize, 0, &data);
+	memcpy(data, pixels, static_cast<size_t>(imageSize));
+	vkUnmapMemory(device, stagingBufferMemory);
+
+	stbi_image_free(pixels);
+
+	/* 创建纹理对象 */
+	createImage(texWidth, texHeight, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT
+		| VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory);
+	/* 变换布局、复制缓冲区数据 */
+	transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_UNORM,
+		VK_IMAGE_LAYOUT_UNDEFINED,
+		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+	copyBufferToImage(stagingBuffer, textureImage,
+		static_cast<uint32_t>(texWidth),
+		static_cast<uint32_t>(texHeight));
+
+	/* 为了在着色器中能采样纹理数据，在进行一次布局变换 */
+	transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_UNORM,
+		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+	vkDestroyBuffer(device, stagingBuffer, nullptr);
+	vkFreeMemory(device, stagingBufferMemory, nullptr);
+
+}
+
+void UniformBuffers::createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory) {
+	VkImageCreateInfo imageInfo{};
+	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	imageInfo.imageType = VK_IMAGE_TYPE_2D;
+	imageInfo.extent.width = width;
+	imageInfo.extent.height = height;
+	imageInfo.extent.depth = 1;
+	imageInfo.mipLevels = 1;
+	imageInfo.arrayLayers = 1;
+	imageInfo.format = format;//vulkan支持多种格式图像数据，这里用stb图像库解析的像素数据格式
+	/* 若是要直接访问图像数据，应该设为LINEAR */
+	imageInfo.tiling = tiling;//VK_IMAGE_TILING_LINEAR：纹素以行主序的方式排列;VK_IMAGE_TILING_OPTIMAL：纹素以一种对访问优化的方式排列
+	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	imageInfo.usage = usage;//后者用于-图像数据被着色器采样
+	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;//纸杯一个队列族使用：支持传输操作的队列族，用独占模式
+	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;//用于设置多重采样，只对用作附着的对象有效，不用附着设置1即可
+
+	if (vkCreateImage(device, &imageInfo, nullptr, &image) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create image!");
+	}
+
+	/* 分配图像内存方法和createBuffer里分配缓冲内存几乎一模一样 */
+	VkMemoryRequirements memRequirements;
+	vkGetImageMemoryRequirements(device, image, &memRequirements);
+
+	VkMemoryAllocateInfo allocInfo{};
+	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	allocInfo.allocationSize = memRequirements.size;
+	allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
+
+	if (vkAllocateMemory(device, &allocInfo, nullptr, &imageMemory) != VK_SUCCESS) {
+		throw std::runtime_error("failed to allocate image memory!");
+	}
+
+	vkBindImageMemory(device, image, imageMemory, 0);
+}
+
+/* 我们需要vkCmdCopyBufferToImage 但是需要图像满足一定布局要求，这里对图像布局进行变换 */
+void  UniformBuffers::transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout) {
+	VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+
+	/* 通过图像内存屏障image memory barrier对布局进行变换 */
+	VkImageMemoryBarrier barrier = {};
+	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	barrier.oldLayout = oldLayout;//VK_IMAGE_LAYOUT_UNDEFINED 不需要访问之前的图像数据
+	barrier.newLayout = newLayout;//VK_IMAGE_LAYOUT_PREINITIALIZED 在图像纹素变换后原数据仍存在
+	barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;//用屏障传递队列族所有权需要对这两个成员变量设置，不传递则ignored
+	barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	/* image和subresourceRange 用于指定进行布局变换的图像对象，收影响的图像范围。图像不存在mipmap，因此level layer为1 */
+	barrier.image = image;
+	barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	barrier.subresourceRange.baseMipLevel = 0;
+	barrier.subresourceRange.levelCount = 1;
+	barrier.subresourceRange.baseArrayLayer = 0;
+	barrier.subresourceRange.layerCount = 1;
+
+	/* 指定在barrier之前必须发生的资源操作类型，以及必须等待barrier的资源操作类型 */
+	VkPipelineStageFlags sourceStage;
+	VkPipelineStageFlags destinationStage;
+
+	if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+		/* 指令缓冲的提交会隐式地进行VK_ACCESS_HOST_WRITE_BIT同步。因为transitionImageLayout函数执行的指令缓冲
+		只包含了一条指令，如果布局转换依赖VK_ACCESS_HOST_WRITE_BIT，我们可以通过设置srcAccessMask的值为0来使用
+		这一隐含的同步 */
+		barrier.srcAccessMask = 0;
+		barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+		/* 
+			从buffer写入图像对象，写入操作不需要等待任何对象，因此掩码为VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT，
+			表示最早出现的管线阶段。
+
+			而VK_PIPELINE_STAGE_TRANSFER_BIT并非真实存在的管线阶段，是一个伪阶段，出现在传输操作发生时
+		*/
+		sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+		destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+	}
+	else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+		/* 同理，从伪阶段到片段着色器 */
+		sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+		destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+	}
+	else {
+		throw std::invalid_argument("unsupported layout transition!");
+	}
+
+
+	/* 
+		提交barrier对象
+		1：指令缓冲对象
+		2：指定发生在屏障之前的管线阶段
+		3：发生在屏障之后的管线阶段，若想在一个Barrier之后读取uniform，应该指定VK_ACCESS_UNIFORM_READ_BIT标记和
+		最早读取uniform的着色器阶段，比如VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT
+		4:0 或者VK_DEPENDENCY_BY_REGION_BIT，后者表示barrier变为一个区域条件，允许我们读取资源目前已经写入的那部分
+		6-12：用于引用三种可用的管线barrier数组， memory barriers（内存屏障），buffer memory barriers（缓冲内存屏障）
+		和image memory barriers（图像内存屏障）
+	*/
+	vkCmdPipelineBarrier(
+		commandBuffer,
+		sourceStage, destinationStage,
+		0,
+		0, nullptr,
+		0, nullptr,
+		1, &barrier
+	);
+
+	endSingleTimeCommands(commandBuffer);
+}
+
+void UniformBuffers::copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) {
+	VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+
+	/* 和复制缓冲区一样，用VkBufferImageCopy结构体指定将数据复制到图像哪一部分 */
+	VkBufferImageCopy region = {};
+	/* bufferOffset 指定要复制的数据在VkBuffer偏移，RowLength和ImageHeight 指定数据在内存中的存放方式，通过这两个成员
+	可以对每行图像数据使用额外的空间进行对齐，这里都为0表示紧凑存放 */
+	region.bufferOffset = 0;
+	region.bufferRowLength = 0;
+	region.bufferImageHeight = 0;
+
+	/* imageSubresource imageOffset imageExtente指定数据被复制到图像的哪一部分 */
+	region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	region.imageSubresource.mipLevel = 0;
+	region.imageSubresource.baseArrayLayer = 0;
+	region.imageSubresource.layerCount = 1;
+
+	region.imageOffset = { 0, 0, 0 };
+	region.imageExtent = {
+				width,
+				height,
+				1
+	};
+
+	/* 第四个参数指定目的图像当前使用的图像布局，实际上可以指定VkBufferUmageCopy数组，来一次从一个缓冲复制到不同图像对象 */
+	vkCmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+	endSingleTimeCommands(commandBuffer);
+}
+
+VkCommandBuffer UniformBuffers::beginSingleTimeCommands() {
+	VkCommandBufferAllocateInfo allocInfo = {};
+	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	allocInfo.commandPool = commandPool;
+	allocInfo.commandBufferCount = 1;
+
+	VkCommandBuffer commandBuffer;
+	vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer);
+
+	VkCommandBufferBeginInfo beginInfo = {};
+	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+	vkBeginCommandBuffer(commandBuffer, &beginInfo);
+
+	return commandBuffer;
+}
+
+void UniformBuffers::endSingleTimeCommands(VkCommandBuffer commandBuffer) {
+	vkEndCommandBuffer(commandBuffer);
+
+	/* 上述步骤完成了指令缓冲的记录操作，接下来提交指令缓冲完成传输操作 */
+	VkSubmitInfo submitInfo = {};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &commandBuffer;
+
+	vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+	vkQueueWaitIdle(graphicsQueue);
+
+	vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
+}
+
+/* 简化后的copy函数,why这么简化？因为我们需要copy的是图像对象，不是缓冲对象，以免重新写一个copyimagebuffer */
+void UniformBuffers::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
+	VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+
+	VkBufferCopy copyRegion = {};
+	copyRegion.size = size;
+	vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
+
+	endSingleTimeCommands(commandBuffer);
 }
 
 void UniformBuffers::drawFrame() {

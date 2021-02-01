@@ -12,6 +12,6 @@
 8.Generating Mipmaps;
 9.Multisampling;
 
-1月初开始，论文工作影响2周左右
+1月初开始，论文+学习
 
 Until 2021/1/22 Friday.  Drawing a triangle Finished.

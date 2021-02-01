@@ -16,6 +16,9 @@ class UniformBuffers :public SceneBase {
 	VkDescriptorPool descriptorPool;
 	std::vector<VkDescriptorSet> descriptorSets;
 
+	VkImage textureImage;
+	VkDeviceMemory textureImageMemory;
+
 	void cleanup();
 	void createDescriptorSetLayout();
 	void createGraphicsPipeline();
@@ -23,6 +26,12 @@ class UniformBuffers :public SceneBase {
 	void createDescriptorPool();
 	void createDescriptorSets();
 	void createCommandBuffers();
+	void createTextureImage();
+	void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
+	void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
+	VkCommandBuffer beginSingleTimeCommands();
+	void endSingleTimeCommands(VkCommandBuffer commandBuffer);
+	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 	void drawFrame();
 	void updateUniformBuffer(uint32_t currentImage);
 

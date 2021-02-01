@@ -2,9 +2,13 @@
 #pragma once
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
+
 #define GLM_FORCE_RADIANS //使用弧度作为单位
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
 
 #include <iostream>
 #include <fstream>
@@ -199,6 +203,7 @@ public:
 		createGraphicsPipeline(); //图形管线
 		createFramebuffers(); //帧缓冲
 		createCommandPool(); //指令池
+		createTextureImage(); //纹理对象
 		createVertexBuffer(); //顶点缓冲
 		createIndexBuffer();//索引缓冲
 		createUniformBuffers();//uniform缓冲
@@ -212,6 +217,7 @@ public:
 	virtual void createUniformBuffers() {}
 	virtual void createDescriptorPool() {}
 	virtual void createDescriptorSets() {}
+	virtual void createTextureImage() {}
 
 	virtual void mainLoop(){
 		while (!glfwWindowShouldClose(window))
