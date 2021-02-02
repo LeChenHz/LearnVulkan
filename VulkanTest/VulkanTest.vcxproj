@@ -168,6 +168,8 @@
   <ItemGroup>
     <None Include="shaders\HelloTriangle\HelloTriangle.frag" />
     <None Include="shaders\HelloTriangle\HelloTriangle.vert" />
+    <None Include="shaders\TextureShader\TextureShader.frag" />
+    <None Include="shaders\TextureShader\TextureShader.vert" />
     <None Include="shaders\UniformBuffers\UniformBuffers.frag" />
     <None Include="shaders\UniformBuffers\UniformBuffers.vert" />
   </ItemGroup>

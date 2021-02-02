@@ -1,5 +1,6 @@
 #include "UniformBuffers.h"
-
+#define STB_IMAGE_IMPLEMENTATION
+#include <../common/stb_image.h>
 
 void UniformBuffers::cleanup() {
 	cleanupSwapChain();
@@ -53,17 +54,26 @@ void UniformBuffers::createDescriptorSetLayout() {
 		- stageFlags 指定哪个着色器阶段使用VK_SHADER_STAGE_ALL_GRAPHICS为全阶段
 		- pImmutableSamplers 用于和图像采样相关描述符，暂时设为默认值
 	*/
-	VkDescriptorSetLayoutBinding uboLayoutBinding = {};
+	VkDescriptorSetLayoutBinding uboLayoutBinding{};
 	uboLayoutBinding.binding = 0;
 	uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	uboLayoutBinding.descriptorCount = 1;
 	uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 	uboLayoutBinding.pImmutableSamplers = nullptr;
 
+	/* 组合图像采样器描述符 */
+	VkDescriptorSetLayoutBinding samplerLayoutBinding{};
+	samplerLayoutBinding.binding = 1;
+	samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	samplerLayoutBinding.descriptorCount = 1;
+	samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	samplerLayoutBinding.pImmutableSamplers = nullptr;
+
+	std::array<VkDescriptorSetLayoutBinding, 2> bindings = {uboLayoutBinding, samplerLayoutBinding};
 	VkDescriptorSetLayoutCreateInfo layoutInfo = {};
 	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	layoutInfo.bindingCount = 1;
-	layoutInfo.pBindings = &uboLayoutBinding;
+	layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+	layoutInfo.pBindings = bindings.data();
 
 	if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr,
 		&descriptorSetLayout) != VK_SUCCESS) {
@@ -72,8 +82,13 @@ void UniformBuffers::createDescriptorSetLayout() {
 }
 
 void UniformBuffers::createGraphicsPipeline() {
-	auto vertShaderCode = readFile("../VulkanTest/shaders/UniformBuffers/UniformBuffersvert.spv");
-	auto fragShaderCode = readFile("../VulkanTest/shaders/UniformBuffers/UniformBuffersfrag.spv");
+	//UniformBuffers
+	//auto vertShaderCode = readFile("../VulkanTest/shaders/UniformBuffers/UniformBuffersvert.spv");
+	//auto fragShaderCode = readFile("../VulkanTest/shaders/UniformBuffers/UniformBuffersfrag.spv");
+
+	//Texture
+	auto vertShaderCode = readFile("../VulkanTest/shaders/TextureShader/TextureShadervert.spv");
+	auto fragShaderCode = readFile("../VulkanTest/shaders/TextureShader/TextureShaderfrag.spv");
 
 	VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
 	VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);
@@ -209,14 +224,16 @@ void UniformBuffers::createUniformBuffers() {
 }
 
 void UniformBuffers::createDescriptorPool() {
-	VkDescriptorPoolSize poolSize = {};
-	poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	poolSize.descriptorCount = static_cast<uint32_t>(swapChainImages.size());//每一帧分配一个描述符
+	std::array<VkDescriptorPoolSize, 2> poolSize = {};
+	poolSize[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	poolSize[0].descriptorCount = static_cast<uint32_t>(swapChainImages.size());//每一帧分配一个描述符
+	poolSize[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; //给纹理描述符用
+	poolSize[1].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
 
 	VkDescriptorPoolCreateInfo poolInfo = {};
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	poolInfo.poolSizeCount = 1;
-	poolInfo.pPoolSizes = &poolSize;
+	poolInfo.poolSizeCount = static_cast<uint32_t>(poolSize.size());
+	poolInfo.pPoolSizes = poolSize.data();
 	poolInfo.maxSets = static_cast<uint32_t>(swapChainImages.size());//分配最大描述符集个数
 
 	if (vkCreateDescriptorPool(device, &poolInfo, nullptr,
@@ -250,6 +267,12 @@ void UniformBuffers::createDescriptorSets() {
 		bufferInfo.offset = 0;
 		bufferInfo.range = sizeof(UniformBufferObject);
 
+		/* 指定纹理对象描述符 */
+		VkDescriptorImageInfo imageInfo{};
+		imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		imageInfo.imageView = textureImageView;
+		imageInfo.sampler = textureSampler;
+
 		/*
 			更新描述符配置可用vkUpdateDescriptorSets, 以VkWriteDescriptorSet作为参数
 			- dstSet 用于指定要更新的描述符集对象
@@ -261,20 +284,28 @@ void UniformBuffers::createDescriptorSets() {
 			- pImageInfo 指定描述符引用的图像数据
 			- pTexelBufferView 指定描述符引用的缓冲视图（buffer view）暂时不明白用处
 		*/
-		VkWriteDescriptorSet descriptorWrite = {};
-		descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		descriptorWrite.dstSet = descriptorSets[i];
-		descriptorWrite.dstBinding = 0;
-		descriptorWrite.dstArrayElement = 0;
-		descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		descriptorWrite.descriptorCount = 1;
-		descriptorWrite.pBufferInfo = &bufferInfo;
-		descriptorWrite.pImageInfo = nullptr;
-		descriptorWrite.pTexelBufferView = nullptr;
+		std::array<VkWriteDescriptorSet, 2> descriptorWrites = {};
+		descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrites[0].dstSet = descriptorSets[i];
+		descriptorWrites[0].dstBinding = 0;
+		descriptorWrites[0].dstArrayElement = 0;
+		descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		descriptorWrites[0].descriptorCount = 1;
+		descriptorWrites[0].pBufferInfo = &bufferInfo;
+		descriptorWrites[0].pImageInfo = nullptr;
+		descriptorWrites[0].pTexelBufferView = nullptr;
+
+		descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrites[1].dstSet = descriptorSets[i];
+		descriptorWrites[1].dstBinding = 1;
+		descriptorWrites[1].dstArrayElement = 0;
+		descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		descriptorWrites[1].descriptorCount = 1;
+		descriptorWrites[1].pImageInfo = &imageInfo;
 
 		/* vkUpdateDescriptorSets函数可以接受两个数组作为参数：
 		VkWriteDescriptorSet结构体数组和VkCopyDescriptorSet结构体数组。后者被用来复制描述符对象 */
-		vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
+		vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
 	}
 }
 
@@ -360,10 +391,10 @@ void UniformBuffers::createTextureImage() {
 	stbi_image_free(pixels);
 
 	/* 创建纹理对象 */
-	createImage(texWidth, texHeight, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT
+	createImage(texWidth, texHeight, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT
 		| VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory);
 	/* 变换布局、复制缓冲区数据 */
-	transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_UNORM,
+	transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_SRGB,
 		VK_IMAGE_LAYOUT_UNDEFINED,
 		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 	copyBufferToImage(stagingBuffer, textureImage,
@@ -371,7 +402,7 @@ void UniformBuffers::createTextureImage() {
 		static_cast<uint32_t>(texHeight));
 
 	/* 为了在着色器中能采样纹理数据，在进行一次布局变换 */
-	transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_UNORM,
+	transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_SRGB,
 		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
@@ -685,15 +716,15 @@ void UniformBuffers::drawFrame() {
 }
 
 void UniformBuffers::updateUniformBuffer(uint32_t currentImage) {
-	/* 实现绕z轴每秒转90度 */
-	static auto startTime = std::chrono::high_resolution_clock::now();
-
-	auto currentTime = std::chrono::high_resolution_clock::now();
-	/* duration表示一个时间段，第一参数代表可以传入额时间单位的类型，可以为float int等传入1.2表示1.2*period，period代表时间单位 */
-	float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+	///* 实现绕z轴每秒转90度 */
+	//static auto startTime = std::chrono::high_resolution_clock::now();
+	//
+	//auto currentTime = std::chrono::high_resolution_clock::now();
+	///* duration表示一个时间段，第一参数代表可以传入额时间单位的类型，可以为float int等传入1.2表示1.2*period，period代表时间单位 */
+	//float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
 	UniformBufferObject ubo{};
-	ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+	//ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 	ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 	ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10.0f);
 	/* OpenGL和Vulkan Y轴是相反的 */

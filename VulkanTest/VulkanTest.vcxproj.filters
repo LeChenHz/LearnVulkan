@@ -46,6 +46,9 @@
     <Filter Include="资源文件\shader\UniformBuffers">
       <UniqueIdentifier>{20eccc60-0586-47e7-a780-1ffd7a3063a4}</UniqueIdentifier>
     </Filter>
+    <Filter Include="资源文件\shader\TextureShader">
+      <UniqueIdentifier>{7fb90d87-bea7-4c5d-9816-653b76767c04}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp">
@@ -84,6 +87,12 @@
     </None>
     <None Include="shaders\UniformBuffers\UniformBuffers.vert">
       <Filter>资源文件\shader\UniformBuffers</Filter>
+    </None>
+    <None Include="shaders\TextureShader\TextureShader.frag">
+      <Filter>资源文件\shader\TextureShader</Filter>
+    </None>
+    <None Include="shaders\TextureShader\TextureShader.vert">
+      <Filter>资源文件\shader\TextureShader</Filter>
     </None>
   </ItemGroup>
 </Project>
