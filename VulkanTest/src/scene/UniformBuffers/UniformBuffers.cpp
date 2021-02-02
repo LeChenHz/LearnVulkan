@@ -4,6 +4,9 @@
 void UniformBuffers::cleanup() {
 	cleanupSwapChain();
 
+	vkDestroySampler(device, textureSampler, nullptr);
+	vkDestroyImageView(device, textureImageView, nullptr);//清除纹理图像视图
+
 	vkDestroyImage(device, textureImage, nullptr);
 	vkFreeMemory(device, textureImageMemory, nullptr);
 	vkDestroyDescriptorPool(device, descriptorPool, nullptr);
@@ -375,6 +378,54 @@ void UniformBuffers::createTextureImage() {
 	vkDestroyBuffer(device, stagingBuffer, nullptr);
 	vkFreeMemory(device, stagingBufferMemory, nullptr);
 
+}
+
+/* 和createImageView差不多，只有format和image成员变量设置不同 */
+void UniformBuffers::createTextureImageView() {
+	textureImageView = createImageView(textureImage, VK_FORMAT_R8G8B8A8_SRGB);
+}
+
+void UniformBuffers::createTextureSampler() {
+	/*
+		该结构体指定过滤器和变换操作
+		mag/minFilter 指定纹理需要方盒缩小时候使用的插值方法（放大出现采样过密，缩小采样过疏） VK_FILTER_NEAREST就是直接距离片段最近的纹理像素颜色
+		U,V,W三个方向的寻址模式（变换操作，即采样超过纹理图像实际范围），有以下几种值
+			- VK_SAMPLER_ADDRESS_MODE_REPEAT：采样超出图像范围时重复纹理
+			- VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT：采样超出图像范围时重复镜像后的纹理
+			- VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE：采样超出图像范围时使用距离最近的边界纹素
+			- VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE：采样超出图像范围时使用镜像后距离最近的边界纹素
+			- VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER：采样超出图像返回时返回设置的边界颜色
+		anisotropyEnable:是否开启各向异性
+		maxAnisotropy:限定计算最终颜色使用的样本个数，值越小采样性能越好，质量越低
+		borderColor:指定使用VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER寻址模式时超过范围时返回的连接颜色
+		unnormalizedCoordinates:指定采样的坐标系统：
+			若为TRUE，坐标范围[0, texWidth)和[0, texHeight)
+			若为FALSE，范围都为【0,1）
+		compareEnable和compareOp:可以将样本和一个设定的值进行比较，并将比较结果用于之后的过滤操作，阴影贴图使用
+		mipmapMode,mipLodBias,minLod,maxLod:用于设置mipmap后续解释
+		
+	*/
+	VkSamplerCreateInfo samplerInfo = {};
+	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+	samplerInfo.magFilter = VK_FILTER_LINEAR;
+	samplerInfo.minFilter = VK_FILTER_LINEAR;
+	samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	samplerInfo.anisotropyEnable = VK_TRUE;
+	samplerInfo.maxAnisotropy = 16;
+	samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+	samplerInfo.unnormalizedCoordinates = VK_FALSE;
+	samplerInfo.compareEnable = VK_FALSE;
+	samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	samplerInfo.mipLodBias = 0.0f;
+	samplerInfo.minLod = 0.0f;
+	samplerInfo.maxLod = 0.0f;
+
+	if (vkCreateSampler(device, &samplerInfo, nullptr, &textureSampler) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create texture sampler!");
+	}
 }
 
 void UniformBuffers::createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory) {

@@ -204,6 +204,8 @@ public:
 		createFramebuffers(); //帧缓冲
 		createCommandPool(); //指令池
 		createTextureImage(); //纹理对象
+		createTextureImageView();//纹理图像视图
+		createTextureSampler();//纹理采样器
 		createVertexBuffer(); //顶点缓冲
 		createIndexBuffer();//索引缓冲
 		createUniformBuffers();//uniform缓冲
@@ -218,6 +220,8 @@ public:
 	virtual void createDescriptorPool() {}
 	virtual void createDescriptorSets() {}
 	virtual void createTextureImage() {}
+	virtual void createTextureImageView() {}
+	virtual void createTextureSampler() {}
 
 	virtual void mainLoop(){
 		while (!glfwWindowShouldClose(window))
@@ -462,6 +466,7 @@ public:
 		}
 
 		VkPhysicalDeviceFeatures deviceFeatures{}; //指定设备特性。暂时为空
+		deviceFeatures.samplerAnisotropy = VK_TRUE;//各向异性
 
 		/* 填充VkDeviceCreateInfo结构体 */
 		VkDeviceCreateInfo createInfo{};
@@ -548,28 +553,36 @@ public:
 
 	}
 
+	/* 方便纹理使用 */
+	virtual VkImageView createImageView(VkImage image, VkFormat format) {
+		VkImageViewCreateInfo viewInfo = {};
+		viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		viewInfo.image = image;
+		viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		viewInfo.format = format;
+		viewInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;//该值实际上是0，可以忽略对components的初始化，直接设0也可以
+		viewInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+		viewInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+		viewInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+		viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		viewInfo.subresourceRange.baseMipLevel = 0;
+		viewInfo.subresourceRange.levelCount = 1;
+		viewInfo.subresourceRange.baseArrayLayer = 0;
+		viewInfo.subresourceRange.layerCount = 1;
+
+		VkImageView imageView;
+		if (vkCreateImageView(device, &viewInfo, nullptr, &imageView) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create texture image view!");
+		}
+
+		return imageView;
+	}
+
 	virtual void createImageViews() {
 		swapChainImageViews.resize(swapChainImages.size());
 
 		for (size_t i = 0; i < swapChainImages.size(); i++) {
-			VkImageViewCreateInfo createInfo{};
-			createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-			createInfo.image = swapChainImages[i];
-			createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-			createInfo.format = swapChainImageFormat;
-			createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-			createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-			createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-			createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-			createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			createInfo.subresourceRange.baseMipLevel = 0;
-			createInfo.subresourceRange.levelCount = 1;
-			createInfo.subresourceRange.baseArrayLayer = 0;
-			createInfo.subresourceRange.layerCount = 1;
-
-			if (vkCreateImageView(device, &createInfo, nullptr, &swapChainImageViews[i]) != VK_SUCCESS) {
-				throw std::runtime_error("failed to create image views!");
-			}
+			swapChainImageViews[i] = createImageView(swapChainImages[i], swapChainImageFormat);
 		}
 	}
 
@@ -1225,7 +1238,10 @@ public:
 			swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
 		}
 
-		return indices.isComplete() && extensionsSupported && swapChainAdequate;
+		VkPhysicalDeviceFeatures supportedFeatures;
+		vkGetPhysicalDeviceFeatures(device, &supportedFeatures);//之前设置过各向异性
+
+		return indices.isComplete() && extensionsSupported && swapChainAdequate && supportedFeatures.samplerAnisotropy;
 	}
 
 	virtual bool checkDeviceExtensionSupport(VkPhysicalDevice device) {
