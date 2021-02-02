@@ -3,6 +3,7 @@
 #include <GLFW/glfw3.h>
 
 #define GLM_FORCE_RADIANS //使用弧度作为单位
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE //glm库投影矩阵使用opengl深度值范围（-1.0，-1.0）,该宏使用（0,1）
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -30,7 +31,7 @@ const bool enableValidationLayers = true;
 const int MAX_FRAMES_IN_FLIGHT = 2; //最大并行渲染帧数
 
 struct Vertex {
-	glm::vec2 pos;
+	glm::vec3 pos;
 	glm::vec3 color;
 	glm::vec2 texCoord;
 
@@ -73,7 +74,7 @@ struct Vertex {
 
 		attributeDescriptions[0].binding = 0;
 		attributeDescriptions[0].location = 0;
-		attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+		attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
 		attributeDescriptions[0].offset = offsetof(Vertex, pos);
 
 		attributeDescriptions[1].binding = 0;
@@ -91,14 +92,20 @@ struct Vertex {
 };
 
 const std::vector<Vertex> vertices = {
-	{{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
-	{{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
-	{{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f} , {0.0f, 1.0f}},
-	{{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}}
+	{{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+	{{0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
+	{{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
+	{{-0.5f, 0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}},
+
+	{{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+	{{0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
+	{{0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
+	{{-0.5f, 0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}}
 };
 
 const std::vector<uint16_t> indices = {
-	0,1,2,2,3,0
+	0,1,2,2,3,0,
+	4,5,6,6,7,4
 };
 
 
@@ -203,6 +210,7 @@ public:
 		createRenderPass(); //创建渲染对象
 		createDescriptorSetLayout();//描述符布局
 		createGraphicsPipeline(); //图形管线
+		createDepthResources();//深度附着相关
 		createFramebuffers(); //帧缓冲
 		createCommandPool(); //指令池
 		createTextureImage(); //纹理对象
@@ -224,6 +232,7 @@ public:
 	virtual void createTextureImage() {}
 	virtual void createTextureImageView() {}
 	virtual void createTextureSampler() {}
+	virtual void createDepthResources() {}
 
 	virtual void mainLoop(){
 		while (!glfwWindowShouldClose(window))
@@ -337,6 +346,7 @@ public:
 		createImageViews();
 		createRenderPass();
 		createGraphicsPipeline();
+		createDepthResources();
 		createFramebuffers();
 		createUniformBuffers();
 		createDescriptorPool();
@@ -555,8 +565,8 @@ public:
 
 	}
 
-	/* 方便纹理使用 */
-	virtual VkImageView createImageView(VkImage image, VkFormat format) {
+	/* 方便纹理使用,之前版本只有2个参数，aspectFlags总是VK_IMAGE_ASPECT_COLOR_BIT，不符合要求，修改为一个函数参数 */
+	virtual VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags) {
 		VkImageViewCreateInfo viewInfo = {};
 		viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 		viewInfo.image = image;
@@ -566,7 +576,8 @@ public:
 		viewInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
 		viewInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
 		viewInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-		viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		//viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		viewInfo.subresourceRange.aspectMask = aspectFlags;
 		viewInfo.subresourceRange.baseMipLevel = 0;
 		viewInfo.subresourceRange.levelCount = 1;
 		viewInfo.subresourceRange.baseArrayLayer = 0;
@@ -584,7 +595,7 @@ public:
 		swapChainImageViews.resize(swapChainImages.size());
 
 		for (size_t i = 0; i < swapChainImages.size(); i++) {
-			swapChainImageViews[i] = createImageView(swapChainImages[i], swapChainImageFormat);
+			swapChainImageViews[i] = createImageView(swapChainImages[i], swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
 		}
 	}
 
@@ -1244,6 +1255,30 @@ public:
 		vkGetPhysicalDeviceFeatures(device, &supportedFeatures);//之前设置过各向异性
 
 		return indices.isComplete() && extensionsSupported && swapChainAdequate && supportedFeatures.samplerAnisotropy;
+	}
+
+	virtual VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling,
+		VkFormatFeatureFlags features) {
+		for (VkFormat format : candidates)
+		{
+			/* 
+				VkFormatProperties有以下成员变量：
+				linearTilingFeatures：数据格式支持线性tiling模式
+				optimalTilingFeatures：数据格式支持优化tiling模式
+				bufferFeatures：数据格式支持缓冲
+				检测上面两种tiling模式是否被支持
+			*/
+			VkFormatProperties props;
+			vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &props);
+
+			if (tiling == VK_IMAGE_TILING_LINEAR && (props.linearTilingFeatures & features) == features) {
+				return format;
+			}
+			else if (tiling == VK_IMAGE_TILING_OPTIMAL && (props.optimalTilingFeatures & features) == features) {
+				return format;
+			}
+		}
+		throw std::runtime_error("failed to find supported format!");
 	}
 
 	virtual bool checkDeviceExtensionSupport(VkPhysicalDevice device) {

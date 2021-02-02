@@ -166,6 +166,8 @@
     <ClInclude Include="src\scene\UniformBuffers\UniformBuffers.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="shaders\DepthShader\DepthShader.frag" />
+    <None Include="shaders\DepthShader\DepthShader.vert" />
     <None Include="shaders\HelloTriangle\HelloTriangle.frag" />
     <None Include="shaders\HelloTriangle\HelloTriangle.vert" />
     <None Include="shaders\TextureShader\TextureShader.frag" />

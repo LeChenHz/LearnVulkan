@@ -22,13 +22,23 @@ class UniformBuffers :public SceneBase {
 	VkImageView textureImageView;
 	VkSampler textureSampler;
 
+	VkImage depthImage;
+	VkDeviceMemory depthImageMemory;
+	VkImageView depthImageView;
+
 	void cleanup();
+	void cleanupSwapChain();
 	void createDescriptorSetLayout();
 	void createGraphicsPipeline();
+	void createRenderPass();
+	void createFramebuffers();
 	void createUniformBuffers();
 	void createDescriptorPool();
 	void createDescriptorSets();
 	void createCommandBuffers();
+	void createDepthResources();
+	VkFormat findDepthFormat();
+	bool hasStencilComponent(VkFormat format);
 	void createTextureImage();
 	void createTextureImageView();
 	void createTextureSampler();
