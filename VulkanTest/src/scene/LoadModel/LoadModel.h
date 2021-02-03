@@ -2,7 +2,14 @@
 #include "../SceneBase.h"
 
 
-class UniformBuffers :public SceneBase {
+
+class LoadModel :public SceneBase {
+
+	const std::string MODEL_PATH = "../VulkanTest/res/model/viking_room.obj";
+	const std::string TEXTURE_PATH = "../VulkanTest/res/texture/viking_room.png";
+
+	std::vector<Vertex> vertices;
+	std::vector<uint32_t> indices;
 
 	VkDescriptorSetLayout descriptorSetLayout;
 	std::vector<VkBuffer> uniformBuffers;
@@ -44,6 +51,11 @@ class UniformBuffers :public SceneBase {
 	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 	void drawFrame();
 	void updateUniformBuffer(uint32_t currentImage);
+
+	//model
+	void loadModel();
+	void createVertexBuffer();
+	void createIndexBuffer();
 
 
 	

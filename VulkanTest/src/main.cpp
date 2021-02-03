@@ -34,7 +34,8 @@ int main()
 
 	
 	//SceneBase* app = new SceneBase();
-	UniformBuffers* app = new UniformBuffers();
+	LoadModel* app = new LoadModel();
+	//UniformBuffers* app = new UniformBuffers();
 	try{
 		app->run();
 		}catch(const std::exception& e){

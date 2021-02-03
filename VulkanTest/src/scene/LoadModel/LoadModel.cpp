@@ -1,9 +1,8 @@
-#include "UniformBuffers.h"
-#define STB_IMAGE_IMPLEMENTATION
-#include <../common/stb_image.h>
+#include "LoadModel.h"
+#define TINYOBJLOADER_IMPLEMENTATION
+#include <../common/tiny_obj_loader.h>
 
-
-void UniformBuffers::cleanup() {
+void LoadModel::cleanup() {
 	cleanupSwapChain();
 
 	vkDestroySampler(device, textureSampler, nullptr);
@@ -42,7 +41,7 @@ void UniformBuffers::cleanup() {
 	glfwTerminate();
 }
 
-void UniformBuffers::cleanupSwapChain() {
+void LoadModel::cleanupSwapChain() {
 	vkDestroyImageView(device, depthImageView, nullptr);
 	vkDestroyImage(device, depthImage, nullptr);
 	vkFreeMemory(device, depthImageMemory, nullptr);
@@ -72,7 +71,7 @@ void UniformBuffers::cleanupSwapChain() {
 	vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 }
 
-void UniformBuffers::createDescriptorSetLayout() {
+void LoadModel::createDescriptorSetLayout() {
 	/*
 		- binding 指定着色器使用的描述符绑定索引
 		- descriptorType 指定描述符类型
@@ -107,16 +106,7 @@ void UniformBuffers::createDescriptorSetLayout() {
 	}
 }
 
-void UniformBuffers::createGraphicsPipeline() {
-	//UniformBuffers
-	//auto vertShaderCode = readFile("../VulkanTest/shaders/UniformBuffers/UniformBuffersvert.spv");
-	//auto fragShaderCode = readFile("../VulkanTest/shaders/UniformBuffers/UniformBuffersfrag.spv");
-
-	//Texture
-	//auto vertShaderCode = readFile("../VulkanTest/shaders/TextureShader/TextureShadervert.spv");
-	//auto fragShaderCode = readFile("../VulkanTest/shaders/TextureShader/TextureShaderfrag.spv");
-
-	//DepthShader
+void LoadModel::createGraphicsPipeline() {
 	auto vertShaderCode = readFile("../VulkanTest/shaders/DepthShader/DepthShadervert.spv");
 	auto fragShaderCode = readFile("../VulkanTest/shaders/DepthShader/DepthShaderfrag.spv");
 
@@ -250,7 +240,7 @@ void UniformBuffers::createGraphicsPipeline() {
 	vkDestroyShaderModule(device, vertShaderModule, nullptr);
 }
 
-void UniformBuffers::createRenderPass() {
+void LoadModel::createRenderPass() {
 	VkAttachmentDescription colorAttachment{};
 	colorAttachment.format = swapChainImageFormat;
 	colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -308,7 +298,7 @@ void UniformBuffers::createRenderPass() {
 	}
 }
 
-void UniformBuffers::createFramebuffers() {
+void LoadModel::createFramebuffers() {
 	swapChainFramebuffers.resize(swapChainImageViews.size());
 
 	for (size_t i = 0; i < swapChainImageViews.size(); i++) {
@@ -332,7 +322,7 @@ void UniformBuffers::createFramebuffers() {
 	}
 }
 
-void UniformBuffers::createUniformBuffers() {
+void LoadModel::createUniformBuffers() {
 	VkDeviceSize buffersize = sizeof(UniformBufferObject);
 
 	uniformBuffers.resize(swapChainImages.size());
@@ -346,7 +336,7 @@ void UniformBuffers::createUniformBuffers() {
 	}
 }
 
-void UniformBuffers::createDescriptorPool() {
+void LoadModel::createDescriptorPool() {
 	std::array<VkDescriptorPoolSize, 2> poolSize = {};
 	poolSize[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	poolSize[0].descriptorCount = static_cast<uint32_t>(swapChainImages.size());//每一帧分配一个描述符
@@ -365,7 +355,7 @@ void UniformBuffers::createDescriptorPool() {
 	}
 }
 
-void UniformBuffers::createDescriptorSets() {
+void LoadModel::createDescriptorSets() {
 	/* 创建pool填充 VkDescriptorSetAllocateInfo 结构体 */
 	std::vector<VkDescriptorSetLayout> layouts(swapChainImages.size(), descriptorSetLayout);
 	VkDescriptorSetAllocateInfo allocInfo{};
@@ -432,7 +422,7 @@ void UniformBuffers::createDescriptorSets() {
 	}
 }
 
-void UniformBuffers::createCommandBuffers() {
+void LoadModel::createCommandBuffers() {
 	commandBuffers.resize(swapChainFramebuffers.size());
 
 	VkCommandBufferAllocateInfo allocInfo{};
@@ -476,7 +466,7 @@ void UniformBuffers::createCommandBuffers() {
 		VkDeviceSize offsets[] = { 0 };
 		vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
 
-		vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+		vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32);//最后的参数必须和索引的数组类型一致
 		/* 
 			使用描述符集，由于不是图形管线独有，计算管线也有因此需要指定
 			第4,5,6三个参数分别指描述符集第一个元素索引、需要绑定的描述符集个数、以及用于绑定的描述符集数组
@@ -494,7 +484,7 @@ void UniformBuffers::createCommandBuffers() {
 	}
 }
 
-void UniformBuffers::createDepthResources() {
+void LoadModel::createDepthResources() {
 	VkFormat depthFormat = findDepthFormat();
 
 	/* VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT适合显卡读取的类型 */
@@ -510,14 +500,10 @@ void UniformBuffers::createDepthResources() {
 		depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 		最终渲染流程结束后会变成后者状态
 	*/
-
-	//加了这一行出错了。。。
-	//transitionImageLayout(depthImage, depthFormat, VK_IMAGE_LAYOUT_UNDEFINED,
-	//	VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 }
 
 /* 寻找支持深度图图像数据格式的设备 */
-VkFormat UniformBuffers::findDepthFormat() {
+VkFormat LoadModel::findDepthFormat() {
 	/* 使用的是VK_FORMAT_FEATURE_ 类的标记而不是VK_IMAGE_USAGE_ 类,因为这一类格式包含深度通道（有些还有模板通道） */
 	return findSupportedFormat(
 		{ VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT },
@@ -527,13 +513,13 @@ VkFormat UniformBuffers::findDepthFormat() {
 }
 
 /* 是否含有模板缓冲通道 */
-bool UniformBuffers::hasStencilComponent(VkFormat format) {
+bool LoadModel::hasStencilComponent(VkFormat format) {
 	return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
 }
 
-void UniformBuffers::createTextureImage() {
+void LoadModel::createTextureImage() {
 	int texWidth, texHeight, texChannels;
-	stbi_uc* pixels = stbi_load("../VulkanTest/res/texture/Texture_test.jpg", &texWidth, &texHeight, &texChannels,
+	stbi_uc* pixels = stbi_load(TEXTURE_PATH.c_str(), &texWidth, &texHeight, &texChannels,
 								STBI_rgb_alpha);
 	VkDeviceSize imageSize = texWidth * texHeight * 4;
 
@@ -576,11 +562,11 @@ void UniformBuffers::createTextureImage() {
 }
 
 /* 和createImageView差不多，只有format和image成员变量设置不同 */
-void UniformBuffers::createTextureImageView() {
+void LoadModel::createTextureImageView() {
 	textureImageView = createImageView(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
 }
 
-void UniformBuffers::createTextureSampler() {
+void LoadModel::createTextureSampler() {
 	/*
 		该结构体指定过滤器和变换操作
 		mag/minFilter 指定纹理需要方盒缩小时候使用的插值方法（放大出现采样过密，缩小采样过疏） VK_FILTER_NEAREST就是直接距离片段最近的纹理像素颜色
@@ -623,7 +609,7 @@ void UniformBuffers::createTextureSampler() {
 	}
 }
 
-void UniformBuffers::createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory) {
+void LoadModel::createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory) {
 	VkImageCreateInfo imageInfo{};
 	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 	imageInfo.imageType = VK_IMAGE_TYPE_2D;
@@ -661,7 +647,7 @@ void UniformBuffers::createImage(uint32_t width, uint32_t height, VkFormat forma
 }
 
 /* 我们需要vkCmdCopyBufferToImage 但是需要图像满足一定布局要求，这里对图像布局进行变换 */
-void  UniformBuffers::transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout) {
+void  LoadModel::transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout) {
 	VkCommandBuffer commandBuffer = beginSingleTimeCommands();
 
 	/* 通过图像内存屏障image memory barrier对布局进行变换 */
@@ -748,7 +734,7 @@ void  UniformBuffers::transitionImageLayout(VkImage image, VkFormat format, VkIm
 	endSingleTimeCommands(commandBuffer);
 }
 
-void UniformBuffers::copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) {
+void LoadModel::copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) {
 	VkCommandBuffer commandBuffer = beginSingleTimeCommands();
 
 	/* 和复制缓冲区一样，用VkBufferImageCopy结构体指定将数据复制到图像哪一部分 */
@@ -778,7 +764,7 @@ void UniformBuffers::copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t 
 	endSingleTimeCommands(commandBuffer);
 }
 
-VkCommandBuffer UniformBuffers::beginSingleTimeCommands() {
+VkCommandBuffer LoadModel::beginSingleTimeCommands() {
 	VkCommandBufferAllocateInfo allocInfo = {};
 	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
@@ -797,7 +783,7 @@ VkCommandBuffer UniformBuffers::beginSingleTimeCommands() {
 	return commandBuffer;
 }
 
-void UniformBuffers::endSingleTimeCommands(VkCommandBuffer commandBuffer) {
+void LoadModel::endSingleTimeCommands(VkCommandBuffer commandBuffer) {
 	vkEndCommandBuffer(commandBuffer);
 
 	/* 上述步骤完成了指令缓冲的记录操作，接下来提交指令缓冲完成传输操作 */
@@ -813,7 +799,7 @@ void UniformBuffers::endSingleTimeCommands(VkCommandBuffer commandBuffer) {
 }
 
 /* 简化后的copy函数,why这么简化？因为我们需要copy的是图像对象，不是缓冲对象，以免重新写一个copyimagebuffer */
-void UniformBuffers::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
+void LoadModel::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
 	VkCommandBuffer commandBuffer = beginSingleTimeCommands();
 
 	VkBufferCopy copyRegion = {};
@@ -823,7 +809,7 @@ void UniformBuffers::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDevice
 	endSingleTimeCommands(commandBuffer);
 }
 
-void UniformBuffers::drawFrame() {
+void LoadModel::drawFrame() {
 	/* 等待一组栅栏中的一个或者全部栅栏发出信号，VK_TRUE是否等待所有fence，但是我们这里只引入了一个fence，无所谓TRUE */
 	vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, std::numeric_limits<uint64_t>::max());
 
@@ -893,7 +879,7 @@ void UniformBuffers::drawFrame() {
 	currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
-void UniformBuffers::updateUniformBuffer(uint32_t currentImage) {
+void LoadModel::updateUniformBuffer(uint32_t currentImage) {
 	///* 实现绕z轴每秒转90度 */
 	//static auto startTime = std::chrono::high_resolution_clock::now();
 	//
@@ -912,4 +898,89 @@ void UniformBuffers::updateUniformBuffer(uint32_t currentImage) {
 	vkMapMemory(device, uniformBuffersMemory[currentImage], 0, sizeof(ubo), 0, &data);
 	memcpy(data, &ubo, sizeof(ubo));
 	vkUnmapMemory(device, uniformBuffersMemory[currentImage]);
+}
+
+void LoadModel::loadModel() {
+	tinyobj::attrib_t attrib;//pos,normal,texCoord
+	std::vector<tinyobj::shape_t> shapes;//独立的对象name和表面数据mesh
+	std::vector<tinyobj::material_t> materials;
+	std::string err;
+
+	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &err, MODEL_PATH.c_str())) {
+		throw std::runtime_error(err);
+	}
+
+	for (const auto& shape : shapes)
+	{
+		for (const auto& index : shape.mesh.indices) {
+			Vertex vertex = {};
+
+			vertex.pos = {
+				attrib.vertices[3 * index.vertex_index + 0],//x
+				attrib.vertices[3 * index.vertex_index + 1],//y
+				attrib.vertices[3 * index.vertex_index + 2] //z
+
+			};
+
+			vertex.texCoord = {
+				attrib.texcoords[2 * index.texcoord_index + 0],//U
+				attrib.texcoords[2 * index.texcoord_index + 1] //V
+			};
+
+			vertex.color = {1.0f, 1.0f, 1.0f};
+
+			vertices.push_back(vertex);
+			indices.push_back(indices.size());
+		}
+	}
+}
+
+void LoadModel::createVertexBuffer() {
+	VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
+
+	VkBuffer stagingBuffer;/* 暂存缓冲，CPU可见的 */
+	VkDeviceMemory stagingBufferMemory;
+	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+		VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+
+	/* 将顶点数据复制到缓冲中 */
+	void* data;
+	/*
+		将缓冲关联的内存映射到CPU可以访问的内存，该函数允许通过给定的内存偏移值和内存大小访问特定内存资源
+		偏移值：0
+		内存大小：bufferinfo.size（特殊值VK_WHOLE_SIZE可以用来映射整个内存）
+		倒数第二个参数：指定一个标记，目前没用处，社会为0
+	*/
+	vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
+	memcpy(data, vertices.data(), (size_t)bufferSize);
+	/* 复制完毕后结束映射 */
+	vkUnmapMemory(device, stagingBufferMemory);
+
+	/* 显卡读取快的真正缓冲 */
+	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer, vertexBufferMemory);
+
+	copyBuffer(stagingBuffer, vertexBuffer, bufferSize);
+
+	vkDestroyBuffer(device, stagingBuffer, nullptr);
+	vkFreeMemory(device, stagingBufferMemory, nullptr);
+}
+
+void LoadModel::createIndexBuffer() {
+	VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
+
+	VkBuffer stagingBuffer;
+	VkDeviceMemory stagingBufferMemory;
+	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+
+	void* data;
+	vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
+	memcpy(data, indices.data(), (size_t)bufferSize);
+	vkUnmapMemory(device, stagingBufferMemory);
+	/* 注意用的是VK_BUFFER_USAGE_INDEX_BUFFER_BIT*/
+	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexBuffer, indexBufferMemory);
+
+	copyBuffer(stagingBuffer, indexBuffer, bufferSize);
+
+	vkDestroyBuffer(device, stagingBuffer, nullptr);
+	vkFreeMemory(device, stagingBufferMemory, nullptr);
 }

@@ -52,6 +52,15 @@
     <Filter Include="资源文件\shader\DepthShader">
       <UniqueIdentifier>{e6dd85d1-1310-487e-bc28-b42dca782dfe}</UniqueIdentifier>
     </Filter>
+    <Filter Include="源文件\scene\LoadModel">
+      <UniqueIdentifier>{e92a720d-5e65-4d36-9f53-71074c8840a4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="头文件\scene\LoadModel">
+      <UniqueIdentifier>{6abaa010-46ba-482a-b46a-7deb798d8e7d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="资源文件\shader\LoadModel">
+      <UniqueIdentifier>{10939487-8a21-45d3-a452-9a17014ed7d7}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp">
@@ -62,6 +71,12 @@
     </ClCompile>
     <ClCompile Include="src\scene\UniformBuffers\UniformBuffers.cpp">
       <Filter>源文件\scene\UniformBuffers</Filter>
+    </ClCompile>
+    <ClCompile Include="src\scene\LoadModel\LoadModel.cpp">
+      <Filter>源文件\scene\LoadModel</Filter>
+    </ClCompile>
+    <ClCompile Include="src\scene\SceneBase.cpp">
+      <Filter>源文件\scene</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -76,6 +91,9 @@
     </ClInclude>
     <ClInclude Include="src\scene\UniformBuffers\UniformBuffers.h">
       <Filter>头文件\scene\UniformBuffers</Filter>
+    </ClInclude>
+    <ClInclude Include="src\scene\LoadModel\LoadModel.h">
+      <Filter>头文件\scene\LoadModel</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -102,6 +120,12 @@
     </None>
     <None Include="shaders\DepthShader\DepthShader.vert">
       <Filter>资源文件\shader\DepthShader</Filter>
+    </None>
+    <None Include="shaders\LoadModel\LoadModel.frag">
+      <Filter>资源文件\shader\LoadModel</Filter>
+    </None>
+    <None Include="shaders\LoadModel\LoadModel.vert">
+      <Filter>资源文件\shader\LoadModel</Filter>
     </None>
   </ItemGroup>
 </Project>

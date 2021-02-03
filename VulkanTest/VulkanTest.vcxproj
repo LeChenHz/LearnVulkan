@@ -157,10 +157,13 @@
   <ItemGroup>
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\scene\HelloTriangle\HelloTriangle.cpp" />
+    <ClCompile Include="src\scene\LoadModel\LoadModel.cpp" />
+    <ClCompile Include="src\scene\SceneBase.cpp" />
     <ClCompile Include="src\scene\UniformBuffers\UniformBuffers.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\scene\HelloTriangle\HelloTriangle.h" />
+    <ClInclude Include="src\scene\LoadModel\LoadModel.h" />
     <ClInclude Include="src\scene\scene.h" />
     <ClInclude Include="src\scene\SceneBase.h" />
     <ClInclude Include="src\scene\UniformBuffers\UniformBuffers.h" />
@@ -170,6 +173,8 @@
     <None Include="shaders\DepthShader\DepthShader.vert" />
     <None Include="shaders\HelloTriangle\HelloTriangle.frag" />
     <None Include="shaders\HelloTriangle\HelloTriangle.vert" />
+    <None Include="shaders\LoadModel\LoadModel.frag" />
+    <None Include="shaders\LoadModel\LoadModel.vert" />
     <None Include="shaders\TextureShader\TextureShader.frag" />
     <None Include="shaders\TextureShader\TextureShader.vert" />
     <None Include="shaders\UniformBuffers\UniformBuffers.frag" />
