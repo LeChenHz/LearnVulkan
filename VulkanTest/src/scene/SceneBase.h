@@ -4,6 +4,9 @@
 
 #include <stb_image.h>
 
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/hash.hpp>
+
 #define GLM_FORCE_RADIANS //使用弧度作为单位
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE //glm库投影矩阵使用opengl深度值范围（-1.0，-1.0）,该宏使用（0,1）
 #include <glm/glm.hpp>
@@ -91,7 +94,21 @@ struct Vertex {
 
 		return attributeDescriptions;
 	}
+	/* 后一个const */
+	bool operator==(const Vertex& other) const {
+		return pos == other.pos && color == other.color && texCoord == other.texCoord;
+	}
 };
+
+namespace std {
+	template<> struct hash<Vertex> {
+		size_t operator()(Vertex const& vertex) const {
+			return ((hash<glm::vec3>()(vertex.pos)
+				^ (hash<glm::vec3>()(vertex.color) << 1)) >> 1)
+				^ (hash<glm::vec2>()(vertex.texCoord) << 1);
+		}
+	};
+}
 
 struct UniformBufferObject {
 	glm::mat4 model;
