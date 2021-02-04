@@ -165,6 +165,8 @@ public:
 
 	VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
 	VkDevice device; //logic device
+	//msaa
+	VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 
 	VkQueue graphicsQueue;
 	VkQueue presentQueue;
@@ -225,6 +227,7 @@ public:
 	virtual void createTextureSampler() {}
 	virtual void createDepthResources() {}
 	virtual void loadModel() {}
+	virtual void createColorResources() {}//msaa
 
 	virtual void mainLoop();
 	virtual void cleanupSwapChain();
@@ -310,9 +313,13 @@ public:
 
 	virtual bool checkValidationLayerSupport();
 
+	//MSAA
+	virtual VkSampleCountFlagBits getMaxUsableSampleCount();
+
 	static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData) {
 		std::cerr << "validation layer: " << pCallbackData->pMessage << std::endl;
 
 		return VK_FALSE;
 	}
+
 };

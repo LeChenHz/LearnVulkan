@@ -8,6 +8,11 @@ class LoadModel :public SceneBase {
 	const std::string MODEL_PATH = "../VulkanTest/res/model/viking_room.obj";
 	const std::string TEXTURE_PATH = "../VulkanTest/res/texture/viking_room.png";
 
+	//msaa
+	VkImage colorImage;
+	VkDeviceMemory colorImageMemory;
+	VkImageView colorImageView;
+
 	std::vector<Vertex> vertices;
 	std::vector<uint32_t> indices;
 
@@ -46,7 +51,7 @@ class LoadModel :public SceneBase {
 	void createTextureImage();
 	void createTextureImageView();
 	void createTextureSampler();
-	void createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
+	void createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
 	VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels);
 	void createImageViews();
 	void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels);
@@ -65,5 +70,7 @@ class LoadModel :public SceneBase {
 	//mipmap
 	void generateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels);
 
+	//msaa
+	void createColorResources();
 	
 };
