@@ -1,6 +1,13 @@
 #pragma once
+
+//imgui
+#include "imgui.h"
+#include "imgui_impl_vulkan.h"
+#include "imgui_impl_glfw.h"
+
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
+#include <stdio.h>
 
 #include <stb_image.h>
 
@@ -20,7 +27,6 @@
 #include <cstring>
 #include <cstdlib>
 #include <functional>
-#include <cstdlib>
 #include <set>
 #include <array>
 #include <chrono> //使用计时函数
@@ -156,6 +162,10 @@ public:
 		4,5,6,6,7,4
 	};
 
+	//imgui test
+	static ImGui_ImplVulkanH_Window g_MainWindowData;
+
+
 	const int WIDTH = 800;
 	const int HEIGHT = 600;
 	GLFWwindow* window;
@@ -207,6 +217,7 @@ public:
 	const std::vector<const char*> deviceExtensions = {
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME
 	};
+
 
 	virtual void run();
 

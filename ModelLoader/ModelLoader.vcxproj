@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
       <Configuration>Debug</Configuration>
@@ -19,10 +19,10 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <VCProjectVersion>15.0</VCProjectVersion>
-    <ProjectGuid>{B5AD1BA3-59A5-4B4E-A6FB-F8D95FC1DFBA}</ProjectGuid>
+    <VCProjectVersion>16.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <RootNamespace>VulkanTest</RootNamespace>
+    <ProjectGuid>{30ea494d-0122-4cc7-9382-0e68750ff27e}</ProjectGuid>
+    <RootNamespace>ModelLoader</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -72,113 +72,110 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <LinkIncremental>true</LinkIncremental>
+    <IncludePath>E:\project\paper\LearnVulkan\LearnVulkan\ModelLoader\src\common\ImGUI;E:\project\paper\LearnVulkan\LearnVulkan\ModelLoader\src\common;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include\vulkan;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include\glm;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include\GLFW;$(IncludePath)</IncludePath>
+    <LibraryPath>E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
+    <IncludePath>E:\project\paper\LearnVulkan\LearnVulkan\ModelLoader\src\common\ImGUI;E:\project\paper\LearnVulkan\LearnVulkan\ModelLoader\src\common;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include\vulkan;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include\glm;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include\GLFW;$(IncludePath)</IncludePath>
+    <LibraryPath>E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\lib;$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <LinkIncremental>true</LinkIncremental>
+    <IncludePath>E:\project\paper\LearnVulkan\LearnVulkan\ModelLoader\src\common\ImGUI;E:\project\paper\LearnVulkan\LearnVulkan\ModelLoader\src\common;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include\vulkan;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include\glm;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include\GLFW;$(IncludePath)</IncludePath>
+    <LibraryPath>E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
+    <IncludePath>E:\project\paper\LearnVulkan\LearnVulkan\ModelLoader\src\common\ImGUI;E:\project\paper\LearnVulkan\LearnVulkan\ModelLoader\src\common;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include\vulkan;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include\glm;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include\GLFW;$(IncludePath)</IncludePath>
+    <LibraryPath>E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
-      <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>E:\project\paper\LearnVulkan\LearnVulkan\VulkanTest\src\common;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include\glm;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include\GLFW;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\lib;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include\glad;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>E:\project\paper\LearnVulkan\LearnVulkan\ModelLoader\src\common\ImGUI;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>vulkan-1.lib;glfw3.lib;assimpd.lib;freetype.lib;AntTweakBar64.lib;%(AdditionalDependencies)</AdditionalDependencies>
-    </Link>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <ClCompile>
-      <WarningLevel>Level3</WarningLevel>
-      <Optimization>Disabled</Optimization>
-      <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>E:\project\paper\LearnVulkan\LearnVulkan\VulkanTest\src\common\ImGUI;E:\project\paper\LearnVulkan\LearnVulkan\VulkanTest\src\common;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include\glm;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include\GLFW;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-    </ClCompile>
-    <Link>
-      <SubSystem>Console</SubSystem>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>E:\project\paper\LearnVulkan\LearnVulkan\ModelLoader\src\common;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>vulkan-1.lib;glfw3.lib;assimpd.lib;freetype.lib;AntTweakBar64.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
-      <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>E:\project\paper\LearnVulkan\LearnVulkan\VulkanTest\src\common;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include\glm;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include\GLFW;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>E:\project\paper\LearnVulkan\LearnVulkan\ModelLoader\src\common\ImGUI;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>E:\project\paper\LearnVulkan\LearnVulkan\ModelLoader\src\common;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>vulkan-1.lib;glfw3.lib;assimpd.lib;freetype.lib;AntTweakBar64.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>E:\project\paper\LearnVulkan\LearnVulkan\ModelLoader\src\common\ImGUI;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>E:\project\paper\LearnVulkan\LearnVulkan\ModelLoader\src\common;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>vulkan-1.lib;glfw3.lib;assimpd.lib;freetype.lib;AntTweakBar64.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
-      <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>E:\project\paper\LearnVulkan\LearnVulkan\VulkanTest\src\common;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include\glm;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include\GLFW;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>E:\project\paper\LearnVulkan\LearnVulkan\ModelLoader\src\common\ImGUI;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>E:\project\paper\LearnVulkan\LearnVulkan\ModelLoader\src\common;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>vulkan-1.lib;glfw3.lib;assimpd.lib;freetype.lib;AntTweakBar64.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\common\ImGUI\imgui.cpp" />
+    <ClCompile Include="src\common\ImGUI\imgui_demo.cpp" />
+    <ClCompile Include="src\common\ImGUI\imgui_draw.cpp" />
+    <ClCompile Include="src\common\ImGUI\imgui_impl_glfw.cpp" />
+    <ClCompile Include="src\common\ImGUI\imgui_impl_vulkan.cpp" />
+    <ClCompile Include="src\common\ImGUI\imgui_tables.cpp" />
+    <ClCompile Include="src\common\ImGUI\imgui_widgets.cpp" />
     <ClCompile Include="src\main.cpp" />
-    <ClCompile Include="src\scene\HelloTriangle\HelloTriangle.cpp" />
-    <ClCompile Include="src\scene\LoadModel\LoadModel.cpp" />
-    <ClCompile Include="src\scene\SceneBase.cpp" />
-    <ClCompile Include="src\scene\UniformBuffers\UniformBuffers.cpp" />
+    <ClCompile Include="src\ModelLoader\ModelLoader.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\scene\HelloTriangle\HelloTriangle.h" />
-    <ClInclude Include="src\scene\LoadModel\LoadModel.h" />
-    <ClInclude Include="src\scene\scene.h" />
-    <ClInclude Include="src\scene\SceneBase.h" />
-    <ClInclude Include="src\scene\UniformBuffers\UniformBuffers.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="shaders\DepthShader\DepthShader.frag" />
-    <None Include="shaders\DepthShader\DepthShader.vert" />
-    <None Include="shaders\HelloTriangle\HelloTriangle.frag" />
-    <None Include="shaders\HelloTriangle\HelloTriangle.vert" />
-    <None Include="shaders\LoadModel\LoadModel.frag" />
-    <None Include="shaders\LoadModel\LoadModel.vert" />
-    <None Include="shaders\TextureShader\TextureShader.frag" />
-    <None Include="shaders\TextureShader\TextureShader.vert" />
-    <None Include="shaders\UniformBuffers\UniformBuffers.frag" />
-    <None Include="shaders\UniformBuffers\UniformBuffers.vert" />
+    <ClInclude Include="src\common\ImGUI\imconfig.h" />
+    <ClInclude Include="src\common\ImGUI\imgui.h" />
+    <ClInclude Include="src\common\ImGUI\imgui_impl_glfw.h" />
+    <ClInclude Include="src\common\ImGUI\imgui_impl_vulkan.h" />
+    <ClInclude Include="src\common\ImGUI\imgui_internal.h" />
+    <ClInclude Include="src\ModelLoader\ModelLoader.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
