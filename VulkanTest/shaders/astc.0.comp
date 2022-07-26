@@ -1,0 +1,178 @@
+#version 430
+
+#define BW 4
+#define BH 4
+
+
+layout(local_size_x = BW, local_size_y = BH) in;
+layout(rgba8, binding = 0) uniform image2D tex;
+
+uniform ivec2 offset;
+
+#define MAX_WEIGHTS_PER_BLOCK 64
+#define MAX_DECIMATION_MODES 87
+#define MAX_WEIGHT_MODES 2048
+#define MAX_TEXELS_PER_BLOCK (12 * 12)
+#define TEXEL_WEIGHT_SUM 16
+#define MIN_WEIGHT_BITS_PER_BLOCK 24
+#define MAX_WEIGHT_BITS_PER_BLOCK 96
+
+#define QUANT_2 0
+#define QUANT_3 1
+#define QUANT_4 2
+#define QUANT_5 3
+#define QUANT_6 4
+#define QUANT_8 5
+#define QUANT_10 6
+#define QUANT_12 7
+#define QUANT_16 8
+#define QUANT_20 9
+#define QUANT_24 10
+#define QUANT_32 11
+#define QUANT_40 12
+#define QUANT_48 13
+#define QUANT_64 14
+#define QUANT_80 15
+#define QUANT_96 16
+#define QUANT_128 17
+#define QUANT_160 18
+#define QUANT_192 19
+#define QUANT_256 20
+
+
+#define FMT_LUMINANCE 0
+#define FMT_LUMINANCE_DELTA 1
+#define FMT_HDR_LUMINANCE_LARGE_RANGE 2
+#define FMT_HDR_LUMINANCE_SMALL_RANGE 3
+#define FMT_LUMINANCE_ALPHA 4
+#define FMT_LUMINANCE_ALPHA_DELTA 5
+#define FMT_RGB_SCALE 6
+#define FMT_HDR_RGB_SCALE 7
+#define FMT_RGB 8
+#define FMT_RGB_DELTA 9
+#define FMT_RGB_SCALE_ALPHA 10
+#define FMT_HDR_RGB 11
+#define FMT_RGBA 12
+#define FMT_RGBA_DELTA 13
+#define FMT_HDR_RGB_LDR_ALPHA 14
+#define FMT_HDR_RGBA 15
+
+
+#define PARTITION_BITS 10
+#define PARTITION_COUNT (1 << PARTITION_BITS)
+
+layout(std430, binding = 0) readonly buffer InData {
+    uint Raw[];
+};
+
+struct partition_info
+{
+    int partition_count_;
+    int texels_per_partition_[4];
+    int partition_of_texel_[MAX_TEXELS_PER_BLOCK];
+    int texels_of_partition_[4][MAX_TEXELS_PER_BLOCK];
+};
+struct Header {
+    uint R[4]; // raw data
+    uint RR[4]; // reversed data
+    int error_block;			// 1 marks error block, 0 marks non-error-block.
+    int block_mode;				// 0 to 2047. Negative value marks constant-color block (-1: FP16, -2:UINT16)
+    int partition_count;		// 1 to 4; Zero marks a constant-color block.
+    int partition_index;		// 0 to 1023
+    int color_formats[4];		// color format for each endpoint color pair.
+    //int color_formats_matched;	// color format for all endpoint pairs are matched.
+    int ise_values[2][68];
+    int color_values[4][12];	// quantized endpoint color pairs.
+    int color_quantization_level;
+    int plane2_color_component;	// color component for the secondary plane of weights
+
+    int rgb_hdr_endpoint[4];
+    int alpha_hdr_endpoint[4];
+    ivec4 color_endpoint0_[4];
+    ivec4 color_endpoint1_[4];
+    int duel_weights;
+};
+
+shared Header H;
+/*
+In ASTC, we support relatively many combinations of weight precisions and weight transfer functions.
+As such, for each combination we support, we have a hardwired data structure.
+
+This structure provides the following information: A table, used to estimate the closest quantized
+weight for a given floating-point weight. For each quantized weight, the corresponding unquantized
+and floating-point values. For each quantized weight, a previous-value and a next-value.
+*/
+
+struct quantization_and_transfer_table
+{
+    int method;
+    int unquantized_value[32];	// 0..64
+    float unquantized_value_flt[32];	// 0..1
+    int prev_quantized_value[32];
+    int next_quantized_value[32];
+    int closest_quantized_weight[1025];
+};
+
+
+/*
+In ASTC, we don't necessarily provide a weight for every texel.
+As such, for each block size, there are a number of patterns where some texels
+have their weights computed as a weighted average of more than 1 weight.
+As such, the codec uses a data structure that tells us: for each texel, which
+weights it is a combination of for each weight, which texels it contributes to.
+The decimation_table is this data structure.
+*/
+struct decimation_table
+{
+    //int num_texels;
+    int num_weights;
+    int texel_num_weights_[MAX_TEXELS_PER_BLOCK];	// number of indices that go into the calculation for a texel
+    int texel_weights_int_[MAX_TEXELS_PER_BLOCK][4];	// the weight to assign to each weight
+    float texel_weights_float[MAX_TEXELS_PER_BLOCK][4];	// the weight to assign to each weight
+    int texel_weights_[MAX_TEXELS_PER_BLOCK][4];	// the weights that go into a texel calculation
+    //int weight_num_texels_[MAX_WEIGHTS_PER_BLOCK];	// the number of texels that a given weight contributes to
+    int weight_texel_[MAX_WEIGHTS_PER_BLOCK][MAX_TEXELS_PER_BLOCK];	// the texels that the weight contributes to
+    int weights_int_[MAX_WEIGHTS_PER_BLOCK][MAX_TEXELS_PER_BLOCK];	// the weights that the weight contributes to a texel.
+    //float weights_flt[MAX_WEIGHTS_PER_BLOCK][MAX_TEXELS_PER_BLOCK];	// the weights that the weight contributes to a texel.
+};
+
+
+struct block_mode
+{
+    int decimation_mode_;
+    int quantization_mode_;
+    int is_dual_plane_;
+    int permit_decode_;
+};
+
+layout(std430, binding=1) readonly buffer bsd
+{
+    //int decimation_mode_count;
+    //int decimation_mode_samples[MAX_DECIMATION_MODES];
+    //int decimation_mode_maxprec_1plane[MAX_DECIMATION_MODES];
+    //int decimation_mode_maxprec_2planes[MAX_DECIMATION_MODES];
+    //float decimation_mode_percentile[MAX_DECIMATION_MODES];
+    //int permit_encode[MAX_DECIMATION_MODES];
+    decimation_table decimation_tables[MAX_DECIMATION_MODES + 1];
+    block_mode block_modes[MAX_WEIGHT_MODES];
+
+    // for the k-means bed bitmap partitioning algorithm, we don't
+    // want to consider more than 64 texels; this array specifies
+    // which 64 texels (if that many) to consider.
+    //int texelcount_for_bitmap_partitioning;
+    //int texels_for_bitmap_partitioning[64];
+};
+
+
+layout(std430, binding=3) readonly buffer partition_table
+{
+    partition_info pi_one[];
+};
+
+layout(std430, binding=2) readonly buffer integer_table {
+    int trits_of_integer_[256][5];
+    int quints_of_integer_[128][3];
+    int color_quantization_mode_table[17][128];
+    int color_unquantization_tables_[21][256];
+    quantization_and_transfer_table quant_and_xfer_tables[12];
+};

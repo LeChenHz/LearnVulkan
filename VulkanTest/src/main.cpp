@@ -34,7 +34,8 @@ int main()
 
 	
 	//SceneBase* app = new SceneBase();
-	LoadModel* app = new LoadModel();
+	//LoadModel* app = new LoadModel
+	CompressedTexture* app = new CompressedTexture();
 	//UniformBuffers* app = new UniformBuffers();
 	try{
 		app->run();

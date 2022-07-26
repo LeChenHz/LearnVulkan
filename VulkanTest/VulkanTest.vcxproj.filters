@@ -61,6 +61,12 @@
     <Filter Include="资源文件\shader\LoadModel">
       <UniqueIdentifier>{10939487-8a21-45d3-a452-9a17014ed7d7}</UniqueIdentifier>
     </Filter>
+    <Filter Include="源文件\scene\CompressedTexture">
+      <UniqueIdentifier>{9e21f0bb-3ebd-470e-91a9-76c6c9e2b042}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="头文件\scene\CompressedTexture">
+      <UniqueIdentifier>{24abe616-beff-4162-8392-e3bdadf95058}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp">
@@ -78,6 +84,24 @@
     <ClCompile Include="src\scene\SceneBase.cpp">
       <Filter>源文件\scene</Filter>
     </ClCompile>
+    <ClCompile Include="src\scene\CompressedTexture\CompressedTexture.cpp">
+      <Filter>源文件\scene\CompressedTexture</Filter>
+    </ClCompile>
+    <ClCompile Include="src\scene\CompressedTexture\astc_block_size_descriptor.cpp">
+      <Filter>源文件\scene\CompressedTexture</Filter>
+    </ClCompile>
+    <ClCompile Include="src\scene\CompressedTexture\astc_ise.cpp">
+      <Filter>源文件\scene\CompressedTexture</Filter>
+    </ClCompile>
+    <ClCompile Include="src\scene\CompressedTexture\astc_bit_manipulation.cpp">
+      <Filter>源文件\scene\CompressedTexture</Filter>
+    </ClCompile>
+    <ClCompile Include="src\scene\CompressedTexture\astc_percentile_table.cpp">
+      <Filter>源文件\scene\CompressedTexture</Filter>
+    </ClCompile>
+    <ClCompile Include="src\scene\CompressedTexture\astc_partition_table.cpp">
+      <Filter>源文件\scene\CompressedTexture</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\scene\HelloTriangle\HelloTriangle.h">
@@ -94,6 +118,30 @@
     </ClInclude>
     <ClInclude Include="src\scene\LoadModel\LoadModel.h">
       <Filter>头文件\scene\LoadModel</Filter>
+    </ClInclude>
+    <ClInclude Include="src\scene\CompressedTexture\CompressedTexture.h">
+      <Filter>头文件\scene\CompressedTexture</Filter>
+    </ClInclude>
+    <ClInclude Include="src\scene\CompressedTexture\ASTCTable.h">
+      <Filter>头文件\scene\CompressedTexture</Filter>
+    </ClInclude>
+    <ClInclude Include="src\scene\CompressedTexture\astc_partition_table.h">
+      <Filter>头文件\scene\CompressedTexture</Filter>
+    </ClInclude>
+    <ClInclude Include="src\scene\CompressedTexture\astc_block_size_descriptor.h">
+      <Filter>头文件\scene\CompressedTexture</Filter>
+    </ClInclude>
+    <ClInclude Include="src\scene\CompressedTexture\astc_ise.h">
+      <Filter>头文件\scene\CompressedTexture</Filter>
+    </ClInclude>
+    <ClInclude Include="src\scene\CompressedTexture\astc_bit_manipulation.h">
+      <Filter>头文件\scene\CompressedTexture</Filter>
+    </ClInclude>
+    <ClInclude Include="src\scene\CompressedTexture\astc_percentile_table.h">
+      <Filter>头文件\scene\CompressedTexture</Filter>
+    </ClInclude>
+    <ClInclude Include="src\scene\CompressedTexture\SpvFile.h">
+      <Filter>头文件\scene\CompressedTexture</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -127,5 +175,6 @@
     <None Include="shaders\LoadModel\LoadModel.vert">
       <Filter>资源文件\shader\LoadModel</Filter>
     </None>
+    <None Include="cpp.hint" />
   </ItemGroup>
 </Project>

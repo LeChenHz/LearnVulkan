@@ -96,12 +96,12 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>E:\project\paper\LearnVulkan\LearnVulkan\ModelLoader\src\common\ImGUI;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>D:\WorkSpace\LearnVulkan\Vulkan_Lib\lib;D:\WorkSpace\LearnVulkan\Vulkan_Lib\include\GLFW;D:\WorkSpace\LearnVulkan\Vulkan_Lib\include\glm;D:\WorkSpace\LearnVulkan\Vulkan_Lib\include;D:\WorkSpace\LearnVulkan\ModelLoader\src\common\ImGUI;D:\WorkSpace\LearnVulkan\ModelLoader\src\common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>E:\project\paper\LearnVulkan\LearnVulkan\ModelLoader\src\common;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>D:\WorkSpace\LearnVulkan\ModelLoader\src\common;D:\WorkSpace\LearnVulkan\Vulkan_Lib\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>vulkan-1.lib;glfw3.lib;assimpd.lib;freetype.lib;AntTweakBar64.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
@@ -113,14 +113,14 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>E:\project\paper\LearnVulkan\LearnVulkan\ModelLoader\src\common\ImGUI;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>D:\WorkSpace\LearnVulkan\Vulkan_Lib\lib;D:\WorkSpace\LearnVulkan\Vulkan_Lib\include\GLFW;D:\WorkSpace\LearnVulkan\Vulkan_Lib\include\glm;D:\WorkSpace\LearnVulkan\Vulkan_Lib\include;D:\WorkSpace\LearnVulkan\ModelLoader\src\common\ImGUI;D:\WorkSpace\LearnVulkan\ModelLoader\src\common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>E:\project\paper\LearnVulkan\LearnVulkan\ModelLoader\src\common;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>D:\WorkSpace\LearnVulkan\ModelLoader\src\common;D:\WorkSpace\LearnVulkan\Vulkan_Lib\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>vulkan-1.lib;glfw3.lib;assimpd.lib;freetype.lib;AntTweakBar64.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
@@ -130,12 +130,12 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>E:\project\paper\LearnVulkan\LearnVulkan\ModelLoader\src\common\ImGUI;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>D:\WorkSpace\LearnVulkan\Vulkan_Lib\lib;D:\WorkSpace\LearnVulkan\Vulkan_Lib\include\GLFW;D:\WorkSpace\LearnVulkan\Vulkan_Lib\include\glm;D:\WorkSpace\LearnVulkan\Vulkan_Lib\include;D:\WorkSpace\LearnVulkan\ModelLoader\src\common\ImGUI;D:\WorkSpace\LearnVulkan\ModelLoader\src\common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>E:\project\paper\LearnVulkan\LearnVulkan\ModelLoader\src\common;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>D:\WorkSpace\LearnVulkan\ModelLoader\src\common;D:\WorkSpace\LearnVulkan\Vulkan_Lib\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>vulkan-1.lib;glfw3.lib;assimpd.lib;freetype.lib;AntTweakBar64.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
@@ -147,14 +147,14 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>E:\project\paper\LearnVulkan\LearnVulkan\ModelLoader\src\common\ImGUI;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>D:\WorkSpace\LearnVulkan\Vulkan_Lib\lib;D:\WorkSpace\LearnVulkan\Vulkan_Lib\include\GLFW;D:\WorkSpace\LearnVulkan\Vulkan_Lib\include\glm;D:\WorkSpace\LearnVulkan\Vulkan_Lib\include;D:\WorkSpace\LearnVulkan\ModelLoader\src\common\ImGUI;D:\WorkSpace\LearnVulkan\ModelLoader\src\common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>E:\project\paper\LearnVulkan\LearnVulkan\ModelLoader\src\common;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>D:\WorkSpace\LearnVulkan\ModelLoader\src\common;D:\WorkSpace\LearnVulkan\Vulkan_Lib\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>vulkan-1.lib;glfw3.lib;assimpd.lib;freetype.lib;AntTweakBar64.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>

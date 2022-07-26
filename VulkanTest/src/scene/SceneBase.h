@@ -122,6 +122,18 @@ struct UniformBufferObject {
 	glm::mat4 proj;
 };
 
+struct CompOffset {
+	glm::ivec2 offset;
+};
+
+struct AstcPushConstant {
+	uint32_t blockSize[2];
+	uint32_t compFormat;
+	uint32_t baseLayer;
+	uint32_t sRGB;
+	uint32_t smallBlock;
+};
+
 
 
 /*

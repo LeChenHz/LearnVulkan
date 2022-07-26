@@ -1,6 +1,5 @@
 #include "SceneBase.h"
 
-
 void SceneBase::run() {
 	initWindow();
 	initVulkan();

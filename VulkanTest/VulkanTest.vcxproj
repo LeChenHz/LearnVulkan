@@ -89,12 +89,12 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>E:\project\paper\LearnVulkan\LearnVulkan\VulkanTest\src\common;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include\glm;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include\GLFW;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\lib;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include\glad;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>E:\project\paper\LearnVulkan\LearnVulkan\VulkanTest\src\common;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include\glm;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include\GLFW;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\lib;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include\glad;%(AdditionalIncludeDirectories);D:\WorkSpace\LearnVulkan\Vulkan_Lib\lib;D:\WorkSpace\LearnVulkan\Vulkan_Lib\include\GLFW;D:\WorkSpace\LearnVulkan\Vulkan_Lib\include\glm;D:\WorkSpace\LearnVulkan\Vulkan_Lib\include;D:\WorkSpace\LearnVulkan\VulkanTest\src\common;D:\WorkSpace\LearnVulkan\VulkanTest\src\common\ImGUI</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>D:\WorkSpace\LearnVulkan\Vulkan_Lib\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>vulkan-1.lib;glfw3.lib;assimpd.lib;freetype.lib;AntTweakBar64.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
@@ -105,12 +105,12 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>E:\project\paper\LearnVulkan\LearnVulkan\VulkanTest\src\common\ImGUI;E:\project\paper\LearnVulkan\LearnVulkan\VulkanTest\src\common;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include\glm;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include\GLFW;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>E:\project\paper\LearnVulkan\LearnVulkan\VulkanTest\src\common\ImGUI;E:\project\paper\LearnVulkan\LearnVulkan\VulkanTest\src\common;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include\glm;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include\GLFW;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\lib;%(AdditionalIncludeDirectories);D:\WorkSpace\LearnVulkan\Vulkan_Lib\lib;D:\WorkSpace\LearnVulkan\Vulkan_Lib\include\GLFW;D:\WorkSpace\LearnVulkan\Vulkan_Lib\include\glm;D:\WorkSpace\LearnVulkan\Vulkan_Lib\include;D:\WorkSpace\LearnVulkan\VulkanTest\src\common;D:\WorkSpace\LearnVulkan\VulkanTest\src\common\ImGUI</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>D:\WorkSpace\LearnVulkan\Vulkan_Lib\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>vulkan-1.lib;glfw3.lib;assimpd.lib;freetype.lib;AntTweakBar64.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
@@ -123,14 +123,14 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>E:\project\paper\LearnVulkan\LearnVulkan\VulkanTest\src\common;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include\glm;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include\GLFW;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>E:\project\paper\LearnVulkan\LearnVulkan\VulkanTest\src\common;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include\glm;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include\GLFW;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\lib;%(AdditionalIncludeDirectories);D:\WorkSpace\LearnVulkan\Vulkan_Lib\lib;D:\WorkSpace\LearnVulkan\Vulkan_Lib\include\GLFW;D:\WorkSpace\LearnVulkan\Vulkan_Lib\include\glm;D:\WorkSpace\LearnVulkan\Vulkan_Lib\include;D:\WorkSpace\LearnVulkan\VulkanTest\src\common;D:\WorkSpace\LearnVulkan\VulkanTest\src\common\ImGUI</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>D:\WorkSpace\LearnVulkan\Vulkan_Lib\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>vulkan-1.lib;glfw3.lib;assimpd.lib;freetype.lib;AntTweakBar64.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
@@ -143,25 +143,39 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>E:\project\paper\LearnVulkan\LearnVulkan\VulkanTest\src\common;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include\glm;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include\GLFW;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>E:\project\paper\LearnVulkan\LearnVulkan\VulkanTest\src\common;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include\glm;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\include\GLFW;E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\lib;%(AdditionalIncludeDirectories);D:\WorkSpace\LearnVulkan\Vulkan_Lib\lib;D:\WorkSpace\LearnVulkan\Vulkan_Lib\include\GLFW;D:\WorkSpace\LearnVulkan\Vulkan_Lib\include\glm;D:\WorkSpace\LearnVulkan\Vulkan_Lib\include;D:\WorkSpace\LearnVulkan\VulkanTest\src\common;D:\WorkSpace\LearnVulkan\VulkanTest\src\common\ImGUI</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>E:\project\paper\LearnVulkan\LearnVulkan\Vulkan_Lib\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>D:\WorkSpace\LearnVulkan\Vulkan_Lib\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>vulkan-1.lib;glfw3.lib;assimpd.lib;freetype.lib;AntTweakBar64.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\scene\CompressedTexture\astc_bit_manipulation.cpp" />
+    <ClCompile Include="src\scene\CompressedTexture\astc_block_size_descriptor.cpp" />
+    <ClCompile Include="src\scene\CompressedTexture\astc_ise.cpp" />
+    <ClCompile Include="src\scene\CompressedTexture\astc_partition_table.cpp" />
+    <ClCompile Include="src\scene\CompressedTexture\astc_percentile_table.cpp" />
+    <ClCompile Include="src\scene\CompressedTexture\CompressedTexture.cpp" />
     <ClCompile Include="src\scene\HelloTriangle\HelloTriangle.cpp" />
     <ClCompile Include="src\scene\LoadModel\LoadModel.cpp" />
     <ClCompile Include="src\scene\SceneBase.cpp" />
     <ClCompile Include="src\scene\UniformBuffers\UniformBuffers.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\scene\CompressedTexture\ASTCTable.h" />
+    <ClInclude Include="src\scene\CompressedTexture\astc_bit_manipulation.h" />
+    <ClInclude Include="src\scene\CompressedTexture\astc_block_size_descriptor.h" />
+    <ClInclude Include="src\scene\CompressedTexture\astc_ise.h" />
+    <ClInclude Include="src\scene\CompressedTexture\astc_partition_table.h" />
+    <ClInclude Include="src\scene\CompressedTexture\astc_percentile_table.h" />
+    <ClInclude Include="src\scene\CompressedTexture\CompressedTexture.h" />
+    <ClInclude Include="src\scene\CompressedTexture\SpvFile.h" />
     <ClInclude Include="src\scene\HelloTriangle\HelloTriangle.h" />
     <ClInclude Include="src\scene\LoadModel\LoadModel.h" />
     <ClInclude Include="src\scene\scene.h" />
@@ -169,6 +183,7 @@
     <ClInclude Include="src\scene\UniformBuffers\UniformBuffers.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="cpp.hint" />
     <None Include="shaders\DepthShader\DepthShader.frag" />
     <None Include="shaders\DepthShader\DepthShader.vert" />
     <None Include="shaders\HelloTriangle\HelloTriangle.frag" />

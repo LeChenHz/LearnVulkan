@@ -1,0 +1,1675 @@
+R"(
+#version 430
+
+#define BW 8
+#define BH 8
+
+
+layout(local_size_x = BW, local_size_y = BH) in;
+layout(rgba8, binding = 0) uniform image2D tex;
+
+layout(push_constant) uniform TextureOffset {
+    ivec2 offset;
+}
+u_pushConstant;
+
+#define MAX_WEIGHTS_PER_BLOCK 64
+#define MAX_DECIMATION_MODES 87
+#define MAX_WEIGHT_MODES 2048
+#define MAX_TEXELS_PER_BLOCK (12 * 12)
+#define TEXEL_WEIGHT_SUM 16
+#define MIN_WEIGHT_BITS_PER_BLOCK 24
+#define MAX_WEIGHT_BITS_PER_BLOCK 96
+
+#define QUANT_2 0
+#define QUANT_3 1
+#define QUANT_4 2
+#define QUANT_5 3
+#define QUANT_6 4
+#define QUANT_8 5
+#define QUANT_10 6
+#define QUANT_12 7
+#define QUANT_16 8
+#define QUANT_20 9
+#define QUANT_24 10
+#define QUANT_32 11
+#define QUANT_40 12
+#define QUANT_48 13
+#define QUANT_64 14
+#define QUANT_80 15
+#define QUANT_96 16
+#define QUANT_128 17
+#define QUANT_160 18
+#define QUANT_192 19
+#define QUANT_256 20
+
+
+#define FMT_LUMINANCE 0
+#define FMT_LUMINANCE_DELTA 1
+#define FMT_HDR_LUMINANCE_LARGE_RANGE 2
+#define FMT_HDR_LUMINANCE_SMALL_RANGE 3
+#define FMT_LUMINANCE_ALPHA 4
+#define FMT_LUMINANCE_ALPHA_DELTA 5
+#define FMT_RGB_SCALE 6
+#define FMT_HDR_RGB_SCALE 7
+#define FMT_RGB 8
+#define FMT_RGB_DELTA 9
+#define FMT_RGB_SCALE_ALPHA 10
+#define FMT_HDR_RGB 11
+#define FMT_RGBA 12
+#define FMT_RGBA_DELTA 13
+#define FMT_HDR_RGB_LDR_ALPHA 14
+#define FMT_HDR_RGBA 15
+
+
+#define PARTITION_BITS 10
+#define PARTITION_COUNT (1 << PARTITION_BITS)
+
+layout(std430, binding = 1) readonly buffer InData {
+    uint Raw[];
+};
+
+struct partition_info
+{
+    int partition_count_;
+    int texels_per_partition_[4];
+    int partition_of_texel_[MAX_TEXELS_PER_BLOCK];
+    int texels_of_partition_[4][MAX_TEXELS_PER_BLOCK];
+};
+struct Header {
+    uint R[4]; // raw data
+    uint RR[4]; // reversed data
+    int error_block;			// 1 marks error block, 0 marks non-error-block.
+    int block_mode;				// 0 to 2047. Negative value marks constant-color block (-1: FP16, -2:UINT16)
+    int partition_count;		// 1 to 4; Zero marks a constant-color block.
+    int partition_index;		// 0 to 1023
+    int color_formats[4];		// color format for each endpoint color pair.
+    //int color_formats_matched;	// color format for all endpoint pairs are matched.
+    int ise_values[2][68];
+    int color_values[4][12];	// quantized endpoint color pairs.
+    int color_quantization_level;
+    int plane2_color_component;	// color component for the secondary plane of weights
+
+    int rgb_hdr_endpoint[4];
+    int alpha_hdr_endpoint[4];
+    ivec4 color_endpoint0_[4];
+    ivec4 color_endpoint1_[4];
+    int duel_weights;
+};
+
+shared Header H;
+/*
+In ASTC, we support relatively many combinations of weight precisions and weight transfer functions.
+As such, for each combination we support, we have a hardwired data structure.
+
+This structure provides the following information: A table, used to estimate the closest quantized
+weight for a given floating-point weight. For each quantized weight, the corresponding unquantized
+and floating-point values. For each quantized weight, a previous-value and a next-value.
+*/
+
+struct quantization_and_transfer_table
+{
+    int method;
+    int unquantized_value[32];	// 0..64
+    float unquantized_value_flt[32];	// 0..1
+    int prev_quantized_value[32];
+    int next_quantized_value[32];
+    int closest_quantized_weight[1025];
+};
+
+
+/*
+In ASTC, we don't necessarily provide a weight for every texel.
+As such, for each block size, there are a number of patterns where some texels
+have their weights computed as a weighted average of more than 1 weight.
+As such, the codec uses a data structure that tells us: for each texel, which
+weights it is a combination of for each weight, which texels it contributes to.
+The decimation_table is this data structure.
+*/
+struct decimation_table
+{
+    //int num_texels;
+    int num_weights;
+    int texel_num_weights_[MAX_TEXELS_PER_BLOCK];	// number of indices that go into the calculation for a texel
+    int texel_weights_int_[MAX_TEXELS_PER_BLOCK][4];	// the weight to assign to each weight
+    float texel_weights_float[MAX_TEXELS_PER_BLOCK][4];	// the weight to assign to each weight
+    int texel_weights_[MAX_TEXELS_PER_BLOCK][4];	// the weights that go into a texel calculation
+    //int weight_num_texels_[MAX_WEIGHTS_PER_BLOCK];	// the number of texels that a given weight contributes to
+    int weight_texel_[MAX_WEIGHTS_PER_BLOCK][MAX_TEXELS_PER_BLOCK];	// the texels that the weight contributes to
+    int weights_int_[MAX_WEIGHTS_PER_BLOCK][MAX_TEXELS_PER_BLOCK];	// the weights that the weight contributes to a texel.
+    //float weights_flt[MAX_WEIGHTS_PER_BLOCK][MAX_TEXELS_PER_BLOCK];	// the weights that the weight contributes to a texel.
+};
+
+
+struct block_mode
+{
+    int decimation_mode_;
+    int quantization_mode_;
+    int is_dual_plane_;
+    int permit_decode_;
+};
+
+layout(std430, binding=2) readonly buffer bsd
+{
+    //int decimation_mode_count;
+    //int decimation_mode_samples[MAX_DECIMATION_MODES];
+    //int decimation_mode_maxprec_1plane[MAX_DECIMATION_MODES];
+    //int decimation_mode_maxprec_2planes[MAX_DECIMATION_MODES];
+    //float decimation_mode_percentile[MAX_DECIMATION_MODES];
+    //int permit_encode[MAX_DECIMATION_MODES];
+    decimation_table decimation_tables[MAX_DECIMATION_MODES + 1];
+    block_mode block_modes[MAX_WEIGHT_MODES];
+
+    // for the k-means bed bitmap partitioning algorithm, we don't
+    // want to consider more than 64 texels; this array specifies
+    // which 64 texels (if that many) to consider.
+    //int texelcount_for_bitmap_partitioning;
+    //int texels_for_bitmap_partitioning[64];
+};
+
+
+layout(std430, binding=3) readonly buffer integer_table {
+    int trits_of_integer_[256][5];
+    int quints_of_integer_[128][3];
+    int color_quantization_mode_table[17][128];
+    int color_unquantization_tables_[21][256];
+    quantization_and_transfer_table quant_and_xfer_tables[12];
+};
+
+layout(std430, binding=4) readonly buffer partition_table
+{
+    partition_info pi_one[];
+};
+
+
+uint read_bits_rev(int offset, int count) {
+    int mask = (1 << count) - 1;
+    int p = offset >> 5;
+    int l = offset & 31;
+
+    int m = 32 - l;
+    if (m >= count) {
+        return (H.RR[p] >> l) & mask;
+    }
+    else {
+        int nm = (1 << (count - m)) - 1;
+        return (H.RR[p] >> l) | ((H.RR[p + 1] & nm) << m);
+    }
+
+}
+
+uint read_bits(int offset, int count) {
+    int mask = (1 << count) - 1;
+    int p = offset >> 5;
+    int l = offset & 31;
+
+    int m = 32 - l;
+    if (m >= count) {
+        return (H.R[p] >> l) & mask;
+    }
+    else {
+        int nm = (1 << (count - m)) - 1;
+        return (H.R[p] >> l) | ((H.R[p + 1] & nm) << m);
+    }
+}
+
+uint read_short(int offset) {
+    int p = offset / 2;
+    if ((offset & 1) != 0) {
+        return H.R[p] >> 16;
+    }
+    else {
+        return H.R[p] & 0xFFFF;
+    }
+}
+
+int compute_ise_bitcount(int items, int quant)
+{
+    switch (quant)
+    {
+    case QUANT_2:
+        return items;
+    case QUANT_3:
+        return (8 * items + 4) / 5;
+    case QUANT_4:
+        return 2 * items;
+    case QUANT_5:
+        return (7 * items + 2) / 3;
+    case QUANT_6:
+        return (13 * items + 4) / 5;
+    case QUANT_8:
+        return 3 * items;
+    case QUANT_10:
+        return (10 * items + 2) / 3;
+    case QUANT_12:
+        return (18 * items + 4) / 5;
+    case QUANT_16:
+        return items * 4;
+    case QUANT_20:
+        return (13 * items + 2) / 3;
+    case QUANT_24:
+        return (23 * items + 4) / 5;
+    case QUANT_32:
+        return 5 * items;
+    case QUANT_40:
+        return (16 * items + 2) / 3;
+    case QUANT_48:
+        return (28 * items + 4) / 5;
+    case QUANT_64:
+        return 6 * items;
+    case QUANT_80:
+        return (19 * items + 2) / 3;
+    case QUANT_96:
+        return (33 * items + 4) / 5;
+    case QUANT_128:
+        return 7 * items;
+    case QUANT_160:
+        return (22 * items + 2) / 3;
+    case QUANT_192:
+        return (38 * items + 4) / 5;
+    case QUANT_256:
+        return 8 * items;
+    default:
+        return 100000;
+    }
+}
+
+void find_number_of_bits_trits_quints(int quantization_level, out int bits, out int trits, out int quints)
+{
+    bits = 0;
+    trits = 0;
+    quints = 0;
+    switch (quantization_level)
+    {
+    case QUANT_2:
+        bits = 1;
+        break;
+    case QUANT_3:
+        bits = 0;
+        trits = 1;
+        break;
+    case QUANT_4:
+        bits = 2;
+        break;
+    case QUANT_5:
+        bits = 0;
+        quints = 1;
+        break;
+    case QUANT_6:
+        bits = 1;
+        trits = 1;
+        break;
+    case QUANT_8:
+        bits = 3;
+        break;
+    case QUANT_10:
+        bits = 1;
+        quints = 1;
+        break;
+    case QUANT_12:
+        bits = 2;
+        trits = 1;
+        break;
+    case QUANT_16:
+        bits = 4;
+        break;
+    case QUANT_20:
+        bits = 2;
+        quints = 1;
+        break;
+    case QUANT_24:
+        bits = 3;
+        trits = 1;
+        break;
+    case QUANT_32:
+        bits = 5;
+        break;
+    case QUANT_40:
+        bits = 3;
+        quints = 1;
+        break;
+    case QUANT_48:
+        bits = 4;
+        trits = 1;
+        break;
+    case QUANT_64:
+        bits = 6;
+        break;
+    case QUANT_80:
+        bits = 4;
+        quints = 1;
+        break;
+    case QUANT_96:
+        bits = 5;
+        trits = 1;
+        break;
+    case QUANT_128:
+        bits = 7;
+        break;
+    case QUANT_160:
+        bits = 5;
+        quints = 1;
+        break;
+    case QUANT_192:
+        bits = 6;
+        trits = 1;
+        break;
+    case QUANT_256:
+        bits = 8;
+        break;
+    }
+}
+
+
+void decode_ise(int quantization_level, int offset, int elements, int use_revbits, 
+    int oidx, int bit_offset)
+{
+    int bits, trits, quints;
+    find_number_of_bits_trits_quints(quantization_level, bits, trits, quints);
+
+    int lcounter = 0;
+    int hcounter = 0;
+    int block_shift = 0;
+    
+    // collect bits for each element, as well as bits for any trit-blocks and quint-blocks.
+    uint t = 0;
+    int tbase = 0;
+    for (int i = 0; i < elements; i++)
+    {
+        if (use_revbits != 0) {
+            H.ise_values[oidx][i + offset] = int(read_bits_rev(bit_offset, bits));
+        }
+        else {
+            H.ise_values[oidx][i + offset] = int(read_bits(bit_offset, bits));
+        }
+        bit_offset += bits;
+        if (trits != 0)
+        {
+            int bits_to_read[5] = { 2, 2, 1, 2, 1 };
+            uint tdata; 
+            if (use_revbits != 0) {
+                tdata = read_bits_rev(bit_offset, bits_to_read[lcounter]);
+            }
+            else {
+                tdata = read_bits(bit_offset, bits_to_read[lcounter]);
+            }
+            bit_offset += bits_to_read[lcounter];
+            t |= tdata << block_shift;
+            block_shift += bits_to_read[lcounter];
+            lcounter++;
+            if (lcounter == 5 || i == elements - 1)
+            {
+                H.ise_values[oidx][tbase + offset] |= trits_of_integer_[t][0] << bits;
+                H.ise_values[oidx][tbase + 1 + offset] |= trits_of_integer_[t][1] << bits;
+                H.ise_values[oidx][tbase + 2 + offset] |= trits_of_integer_[t][2] << bits;
+                H.ise_values[oidx][tbase + 3 + offset] |= trits_of_integer_[t][3] << bits;
+                H.ise_values[oidx][tbase + 4 + offset] |= trits_of_integer_[t][4] << bits;
+
+                t = 0;
+                tbase += 5;
+                hcounter++;
+                lcounter = 0;
+                block_shift = 0;
+            }
+        }
+        if (quints != 0)
+        {
+            int bits_to_read[3] = { 3, 2, 2 };
+            uint tdata;
+            if (use_revbits != 0) {
+                tdata = read_bits_rev(bit_offset, bits_to_read[lcounter]);
+            }
+            else {
+                tdata = read_bits(bit_offset, bits_to_read[lcounter]);
+            }
+            bit_offset += bits_to_read[lcounter];
+            t |= tdata << block_shift;
+            block_shift += bits_to_read[lcounter];
+            lcounter++;
+            if (lcounter == 3 || i == elements - 1) {
+                H.ise_values[oidx][tbase + offset] |= quints_of_integer_[t][0] << bits;
+                H.ise_values[oidx][tbase + 1 + offset] |= quints_of_integer_[t][1] << bits;
+                H.ise_values[oidx][tbase + 2 + offset] |= quints_of_integer_[t][2] << bits;
+
+                t = 0;
+                tbase += 3;
+
+                hcounter++;
+                lcounter=0;
+                block_shift = 0;
+            }
+        }
+    }
+
+}
+
+void luminance_unpack(int vidx, int quantization_level, out ivec4 output0, out ivec4 output1)
+{
+    int lum0 = color_unquantization_tables_[quantization_level][H.color_values[vidx][0]];
+    int lum1 = color_unquantization_tables_[quantization_level][H.color_values[vidx][1]];
+    output0 = ivec4(lum0, lum0, lum0, 255);
+    output1 = ivec4(lum1, lum1, lum1, 255);
+}
+
+void luminance_delta_unpack(int vidx, int quantization_level, out ivec4 output0, out ivec4 output1)
+{
+    int v0 = color_unquantization_tables_[quantization_level][H.color_values[vidx][0]];
+    int v1 = color_unquantization_tables_[quantization_level][H.color_values[vidx][1]];
+    int l0 = (v0 >> 2) | (v1 & 0xC0);
+    int l1 = l0 + (v1 & 0x3F);
+
+    if (l1 > 255)
+        l1 = 255;
+
+    output0 = ivec4(l0, l0, l0, 255);
+    output1 = ivec4(l1, l1, l1, 255);
+}
+
+void hdr_luminance_small_range_unpack(int vidx, int quantization_level, out ivec4 output0, out ivec4 output1)
+{
+    int v0 = color_unquantization_tables_[quantization_level][H.color_values[vidx][0]];
+    int v1 = color_unquantization_tables_[quantization_level][H.color_values[vidx][1]];
+
+    int y0, y1;
+    if ((v0 & 0x80) != 0)
+    {
+        y0 = ((v1 & 0xE0) << 4) | ((v0 & 0x7F) << 2);
+        y1 = (v1 & 0x1F) << 2;
+    }
+    else
+    {
+        y0 = ((v1 & 0xF0) << 4) | ((v0 & 0x7F) << 1);
+        y1 = (v1 & 0xF) << 1;
+    }
+
+    y1 += y0;
+    if (y1 > 0xFFF)
+        y1 = 0xFFF;
+
+    y0 <<= 4; y0 &= 0xFFFF;
+    y1 <<= 4; y1 &= 0xFFFF;
+    output0 = ivec4(y0, y0, y0, 0x7800);
+    output1 = ivec4(y1, y1, y1, 0x7800);
+}
+
+void hdr_luminance_large_range_unpack(int vidx, int quantization_level, out ivec4 output0, out ivec4 output1)
+{
+    int v0 = color_unquantization_tables_[quantization_level][H.color_values[vidx][0]];
+    int v1 = color_unquantization_tables_[quantization_level][H.color_values[vidx][1]];
+
+    int y0, y1;
+    if (v1 >= v0)
+    {
+        y0 = v0 << 4;
+        y1 = v1 << 4;
+    }
+    else
+    {
+        y0 = (v1 << 4) + 8;
+        y1 = (v0 << 4) - 8;
+    }
+
+    y0 <<= 4; y0 &= 0xFFFF;
+    y1 <<= 4; y1 &= 0xFFFF;
+    output0 = ivec4(y0, y0, y0, 0x7800);
+    output1 = ivec4(y1, y1, y1, 0x7800);
+}
+
+void luminance_alpha_unpack(int vidx, int quantization_level, out ivec4 output0, out ivec4 output1)
+{
+    int lum0 = color_unquantization_tables_[quantization_level][H.color_values[vidx][0]];
+    int lum1 = color_unquantization_tables_[quantization_level][H.color_values[vidx][1]];
+    int alpha0 = color_unquantization_tables_[quantization_level][H.color_values[vidx][2]];
+    int alpha1 = color_unquantization_tables_[quantization_level][H.color_values[vidx][3]];
+    output0 = ivec4(lum0, lum0, lum0, alpha0);
+    output1 = ivec4(lum1, lum1, lum1, alpha1);
+}
+
+void luminance_alpha_delta_unpack(int vidx, int quantization_level, out ivec4 output0, out ivec4 output1)
+{
+    int lum0 = color_unquantization_tables_[quantization_level][H.color_values[vidx][0]];
+    int lum1 = color_unquantization_tables_[quantization_level][H.color_values[vidx][1]];
+    int alpha0 = color_unquantization_tables_[quantization_level][H.color_values[vidx][2]];
+    int alpha1 = color_unquantization_tables_[quantization_level][H.color_values[vidx][3]];
+
+    lum0 |= (lum1 & 0x80) << 1;
+    alpha0 |= (alpha1 & 0x80) << 1;
+    lum1 &= 0x7F;
+    alpha1 &= 0x7F;
+    if ((lum1 & 0x40) != 0)
+        lum1 -= 0x80;
+    if ((alpha1 & 0x40) != 0)
+        alpha1 -= 0x80;
+
+    lum0 >>= 1;
+    lum1 >>= 1;
+    alpha0 >>= 1;
+    alpha1 >>= 1;
+    lum1 += lum0;
+    alpha1 += alpha0;
+
+    if (lum1 < 0)
+        lum1 = 0;
+    else if (lum1 > 255)
+        lum1 = 255;
+
+    if (alpha1 < 0)
+        alpha1 = 0;
+    else if (alpha1 > 255)
+        alpha1 = 255;
+
+    lum0 &= 0xFFFF;
+    lum1 &= 0xFFFF;
+
+    output0 = ivec4(lum0, lum0, lum0, alpha0);
+    output1 = ivec4(lum1, lum1, lum1, alpha1);
+}
+
+void rgb_scale_unpack(int vidx, int quantization_level, out ivec4 output0, out ivec4 output1)
+{
+    int ir = color_unquantization_tables_[quantization_level][H.color_values[vidx][0]];
+    int ig = color_unquantization_tables_[quantization_level][H.color_values[vidx][1]];
+    int ib = color_unquantization_tables_[quantization_level][H.color_values[vidx][2]];
+
+    int iscale = color_unquantization_tables_[quantization_level][H.color_values[vidx][3]];
+
+    output1 = ivec4(ir, ig, ib, 255);
+    output0 = ivec4((ir * iscale) >> 8, (ig * iscale) >> 8, (ib * iscale) >> 8, 255);
+}
+
+void rgb_scale_alpha_unpack(int vidx, int quantization_level, out ivec4 output0, out ivec4 output1)
+{
+    rgb_scale_unpack(vidx, quantization_level, output0, output1);
+    output0.w = color_unquantization_tables_[quantization_level][H.color_values[vidx][4]];
+    output1.w = color_unquantization_tables_[quantization_level][H.color_values[vidx][5]];
+}
+
+void hdr_rgbo_unpack3(int vidx, int quantization_level, out ivec4 output0, out ivec4 output1)
+{
+    int v0 = color_unquantization_tables_[quantization_level][H.color_values[vidx][0]];
+    int v1 = color_unquantization_tables_[quantization_level][H.color_values[vidx][1]];
+    int v2 = color_unquantization_tables_[quantization_level][H.color_values[vidx][2]];
+    int v3 = color_unquantization_tables_[quantization_level][H.color_values[vidx][3]];
+
+    int modeval = ((v0 & 0xC0) >> 6) | (((v1 & 0x80) >> 7) << 2) | (((v2 & 0x80) >> 7) << 3);
+
+    int majcomp;
+    int mode;
+    if ((modeval & 0xC) != 0xC)
+    {
+        majcomp = modeval >> 2;
+        mode = modeval & 3;
+    }
+    else if (modeval != 0xF)
+    {
+        majcomp = modeval & 3;
+        mode = 4;
+    }
+    else
+    {
+        majcomp = 0;
+        mode = 5;
+    }
+
+    int red = v0 & 0x3F;
+    int green = v1 & 0x1F;
+    int blue = v2 & 0x1F;
+    int scale = v3 & 0x1F;
+
+    int bit0 = (v1 >> 6) & 1;
+    int bit1 = (v1 >> 5) & 1;
+    int bit2 = (v2 >> 6) & 1;
+    int bit3 = (v2 >> 5) & 1;
+    int bit4 = (v3 >> 7) & 1;
+    int bit5 = (v3 >> 6) & 1;
+    int bit6 = (v3 >> 5) & 1;
+
+    int ohcomp = 1 << mode;
+
+    if ((ohcomp & 0x30) != 0)
+        green |= bit0 << 6;
+    if ((ohcomp & 0x3A) != 0)
+        green |= bit1 << 5;
+    if ((ohcomp & 0x30) != 0)
+        blue |= bit2 << 6;
+    if ((ohcomp & 0x3A) != 0)
+        blue |= bit3 << 5;
+
+    if ((ohcomp & 0x3D) != 0)
+        scale |= bit6 << 5;
+    if ((ohcomp & 0x2D) != 0)
+        scale |= bit5 << 6;
+    if ((ohcomp & 0x04) != 0)
+        scale |= bit4 << 7;
+
+    if ((ohcomp & 0x3B) != 0)
+        red |= bit4 << 6;
+    if ((ohcomp & 0x04) != 0)
+        red |= bit3 << 6;
+
+    if ((ohcomp & 0x10) != 0)
+        red |= bit5 << 7;
+    if ((ohcomp & 0x0F) != 0)
+        red |= bit2 << 7;
+
+    if ((ohcomp & 0x05) != 0)
+        red |= bit1 << 8;
+    if ((ohcomp & 0x0A) != 0)
+        red |= bit0 << 8;
+
+    if ((ohcomp & 0x05) != 0)
+        red |= bit0 << 9;
+    if ((ohcomp & 0x02) != 0)
+        red |= bit6 << 9;
+
+    if ((ohcomp & 0x01) != 0)
+        red |= bit3 << 10;
+    if ((ohcomp & 0x02) != 0)
+        red |= bit5 << 10;
+
+
+    // expand to 12 bits.
+    int shamts[6] = { 1, 1, 2, 3, 4, 5 };
+    int shamt = shamts[mode];
+    red <<= shamt;
+    green <<= shamt;
+    blue <<= shamt;
+    scale <<= shamt;
+
+    // on modes 0 to 4, the values stored for "green" and "blue" are differentials,
+    // not absolute values.
+    if (mode != 5)
+    {
+        green = red - green;
+        blue = red - blue;
+    }
+
+    // switch around components.
+    int temp;
+    switch (majcomp)
+    {
+    case 1:
+        temp = red;
+        red = green;
+        green = temp;
+        break;
+    case 2:
+        temp = red;
+        red = blue;
+        blue = temp;
+        break;
+    default:
+        break;
+    }
+
+
+    int red0 = red - scale;
+    int green0 = green - scale;
+    int blue0 = blue - scale;
+
+    // clamp to [0,0xFFF].
+    if (red < 0)
+        red = 0;
+    if (green < 0)
+        green = 0;
+    if (blue < 0)
+        blue = 0;
+
+    if (red0 < 0)
+        red0 = 0;
+    if (green0 < 0)
+        green0 = 0;
+    if (blue0 < 0)
+        blue0 = 0;
+
+    red0 <<= 4; red0 &= 0xFFFF;
+    green0 <<= 4; green0 &= 0xFFFF;
+    blue0 <<= 4; blue0 &= 0xFFFF;
+    red <<= 4; red &= 0xFFFF;
+    green <<= 4; green &= 0xFFFF;
+    blue <<= 4; blue &= 0xFFFF;
+    output0 = ivec4(red0, green0, blue0, 0x7800);
+    output1 = ivec4(red, green, blue, 0x7800);
+}
+
+int rgb_unpack(int vidx, int quantization_level, out ivec4 output0, out ivec4 output1)
+{
+
+    int ri0b = color_unquantization_tables_[quantization_level][H.color_values[vidx][0]];
+    int ri1b = color_unquantization_tables_[quantization_level][H.color_values[vidx][1]];
+    int gi0b = color_unquantization_tables_[quantization_level][H.color_values[vidx][2]];
+    int gi1b = color_unquantization_tables_[quantization_level][H.color_values[vidx][3]];
+    int bi0b = color_unquantization_tables_[quantization_level][H.color_values[vidx][4]];
+    int bi1b = color_unquantization_tables_[quantization_level][H.color_values[vidx][5]];
+
+    if (ri0b + gi0b + bi0b > ri1b + gi1b + bi1b)
+    {
+        // blue-contraction
+        ri0b = (ri0b + bi0b) >> 1;
+        gi0b = (gi0b + bi0b) >> 1;
+        ri1b = (ri1b + bi1b) >> 1;
+        gi1b = (gi1b + bi1b) >> 1;
+
+        output0.x = ri1b;
+        output0.y = gi1b;
+        output0.z = bi1b;
+        output0.w = 255;
+
+        output1.x = ri0b;
+        output1.y = gi0b;
+        output1.z = bi0b;
+        output1.w = 255;
+        return 1;
+    }
+    else
+    {
+        output0.x = ri0b;
+        output0.y = gi0b;
+        output0.z = bi0b;
+        output0.w = 255;
+
+        output1.x = ri1b;
+        output1.y = gi1b;
+        output1.z = bi1b;
+        output1.w = 255;
+        return 0;
+    }
+}
+
+int rgb_delta_unpack(int vidx, int quantization_level, out ivec4 output0, out ivec4 output1)
+{
+    // unquantize the color endpoints
+    int r0 = color_unquantization_tables_[quantization_level][H.color_values[vidx][0]];
+    int g0 = color_unquantization_tables_[quantization_level][H.color_values[vidx][2]];
+    int b0 = color_unquantization_tables_[quantization_level][H.color_values[vidx][4]];
+
+    int r1 = color_unquantization_tables_[quantization_level][H.color_values[vidx][1]];
+    int g1 = color_unquantization_tables_[quantization_level][H.color_values[vidx][3]];
+    int b1 = color_unquantization_tables_[quantization_level][H.color_values[vidx][5]];
+
+    // perform the bit-transfer procedure
+    r0 |= (r1 & 0x80) << 1;
+    g0 |= (g1 & 0x80) << 1;
+    b0 |= (b1 & 0x80) << 1;
+    r1 &= 0x7F;
+    g1 &= 0x7F;
+    b1 &= 0x7F;
+    if ((r1 & 0x40) != 0)
+        r1 -= 0x80;
+    if ((g1 & 0x40) != 0)
+        g1 -= 0x80;
+    if ((b1 & 0x40) != 0)
+        b1 -= 0x80;
+
+    r0 >>= 1;
+    g0 >>= 1;
+    b0 >>= 1;
+    r1 >>= 1;
+    g1 >>= 1;
+    b1 >>= 1;
+
+    int rgbsum = r1 + g1 + b1;
+
+    r1 += r0;
+    g1 += g0;
+    b1 += b0;
+
+
+    int retval;
+
+    int r0e, g0e, b0e;
+    int r1e, g1e, b1e;
+
+    if (rgbsum >= 0)
+    {
+        r0e = r0;
+        g0e = g0;
+        b0e = b0;
+
+        r1e = r1;
+        g1e = g1;
+        b1e = b1;
+
+        retval = 0;
+    }
+    else
+    {
+        r0e = (r1 + b1) >> 1;
+        g0e = (g1 + b1) >> 1;
+        b0e = b1;
+
+        r1e = (r0 + b0) >> 1;
+        g1e = (g0 + b0) >> 1;
+        b1e = b0;
+
+        retval = 1;
+    }
+
+    if (r0e < 0)
+        r0e = 0;
+    else if (r0e > 255)
+        r0e = 255;
+
+    if (g0e < 0)
+        g0e = 0;
+    else if (g0e > 255)
+        g0e = 255;
+
+    if (b0e < 0)
+        b0e = 0;
+    else if (b0e > 255)
+        b0e = 255;
+
+    if (r1e < 0)
+        r1e = 0;
+    else if (r1e > 255)
+        r1e = 255;
+
+    if (g1e < 0)
+        g1e = 0;
+    else if (g1e > 255)
+        g1e = 255;
+
+    if (b1e < 0)
+        b1e = 0;
+    else if (b1e > 255)
+        b1e = 255;
+
+    output0.x = r0e;
+    output0.y = g0e;
+    output0.z = b0e;
+    output0.w = 0xFF;
+
+    output1.x = r1e;
+    output1.y = g1e;
+    output1.z = b1e;
+    output1.w = 0xFF;
+
+    return retval;
+}
+
+void hdr_rgb_unpack3(int vidx, int quantization_level, out ivec4 output0, out ivec4 output1)
+{
+    int v0 = color_unquantization_tables_[quantization_level][H.color_values[vidx][0]];
+    int v1 = color_unquantization_tables_[quantization_level][H.color_values[vidx][1]];
+    int v2 = color_unquantization_tables_[quantization_level][H.color_values[vidx][2]];
+    int v3 = color_unquantization_tables_[quantization_level][H.color_values[vidx][3]];
+    int v4 = color_unquantization_tables_[quantization_level][H.color_values[vidx][4]];
+    int v5 = color_unquantization_tables_[quantization_level][H.color_values[vidx][5]];
+
+    // extract all the fixed-placement bitfields
+    int modeval = ((v1 & 0x80) >> 7) | (((v2 & 0x80) >> 7) << 1) | (((v3 & 0x80) >> 7) << 2);
+
+    int majcomp = ((v4 & 0x80) >> 7) | (((v5 & 0x80) >> 7) << 1);
+
+    if (majcomp == 3)
+    {
+        output0 = ivec4(v0 << 8, v2 << 8, (v4 & 0x7F) << 9, 0x7800);
+        output1 = ivec4(v1 << 8, v3 << 8, (v5 & 0x7F) << 9, 0x7800);
+        return;
+    }
+
+    int a = v0 | ((v1 & 0x40) << 2);
+    int b0 = v2 & 0x3f;
+    int b1 = v3 & 0x3f;
+    int c = v1 & 0x3f;
+    int d0 = v4 & 0x7f;
+    int d1 = v5 & 0x7f;
+
+    // get hold of the number of bits in 'd0' and 'd1'
+    int dbits_tab[8] = { 7, 6, 7, 6, 5, 6, 5, 6 };
+    int dbits = dbits_tab[modeval];
+
+    // extract six variable-placement bits
+    int bit0 = (v2 >> 6) & 1;
+    int bit1 = (v3 >> 6) & 1;
+
+    int bit2 = (v4 >> 6) & 1;
+    int bit3 = (v5 >> 6) & 1;
+    int bit4 = (v4 >> 5) & 1;
+    int bit5 = (v5 >> 5) & 1;
+
+
+    // and prepend the variable-placement bits depending on mode.
+    int ohmod = 1 << modeval;	// one-hot-mode
+    if ((ohmod & 0xA4) != 0)
+        a |= bit0 << 9;
+    if ((ohmod & 0x8) != 0)
+        a |= bit2 << 9;
+    if ((ohmod & 0x50) != 0)
+        a |= bit4 << 9;
+
+    if ((ohmod & 0x50) != 0)
+        a |= bit5 << 10;
+    if ((ohmod & 0xA0) != 0)
+        a |= bit1 << 10;
+
+    if ((ohmod & 0xC0) != 0)
+        a |= bit2 << 11;
+
+    if ((ohmod & 0x4) != 0)
+        c |= bit1 << 6;
+    if ((ohmod & 0xE8) != 0)
+        c |= bit3 << 6;
+
+    if ((ohmod & 0x20) != 0)
+        c |= bit2 << 7;
+
+
+    if ((ohmod & 0x5B) != 0)
+        b0 |= bit0 << 6;
+    if ((ohmod & 0x5B) != 0)
+        b1 |= bit1 << 6;
+
+    if ((ohmod & 0x12) != 0)
+        b0 |= bit2 << 7;
+    if ((ohmod & 0x12) != 0)
+        b1 |= bit3 << 7;
+
+    if ((ohmod & 0xAF) != 0)
+        d0 |= bit4 << 5;
+    if ((ohmod & 0xAF) != 0)
+        d1 |= bit5 << 5;
+    if ((ohmod & 0x5) != 0)
+        d0 |= bit2 << 6;
+    if ((ohmod & 0x5) != 0)
+        d1 |= bit3 << 6;
+
+    // sign-extend 'd0' and 'd1'
+    // note: this code assumes that signed right-shift actually sign-fills, not zero-fills.
+    int d0x = d0;
+    int d1x = d1;
+    int sx_shamt = 32 - dbits;
+    d0x <<= sx_shamt;
+    d0x >>= sx_shamt;
+    d1x <<= sx_shamt;
+    d1x >>= sx_shamt;
+    d0 = d0x;
+    d1 = d1x;
+
+    // expand all values to 12 bits, with left-shift as needed.
+    int val_shamt = (modeval >> 1) ^ 3;
+    a <<= val_shamt;
+    b0 <<= val_shamt;
+    b1 <<= val_shamt;
+    c <<= val_shamt;
+    d0 <<= val_shamt;
+    d1 <<= val_shamt;
+
+    // then compute the actual color values.
+    int red1 = a;
+    int green1 = a - b0;
+    int blue1 = a - b1;
+    int red0 = a - c;
+    int green0 = a - b0 - c - d0;
+    int blue0 = a - b1 - c - d1;
+
+    // clamp the color components to [0,2^12 - 1]
+    if (red0 < 0)
+        red0 = 0;
+    else if (red0 > 0xFFF)
+        red0 = 0xFFF;
+
+    if (green0 < 0)
+        green0 = 0;
+    else if (green0 > 0xFFF)
+        green0 = 0xFFF;
+
+    if (blue0 < 0)
+        blue0 = 0;
+    else if (blue0 > 0xFFF)
+        blue0 = 0xFFF;
+
+    if (red1 < 0)
+        red1 = 0;
+    else if (red1 > 0xFFF)
+        red1 = 0xFFF;
+
+    if (green1 < 0)
+        green1 = 0;
+    else if (green1 > 0xFFF)
+        green1 = 0xFFF;
+
+    if (blue1 < 0)
+        blue1 = 0;
+    else if (blue1 > 0xFFF)
+        blue1 = 0xFFF;
+
+
+    // switch around the color components
+    int temp0, temp1;
+    switch (majcomp)
+    {
+    case 1:					// switch around red and green
+        temp0 = red0;
+        temp1 = red1;
+        red0 = green0;
+        red1 = green1;
+        green0 = temp0;
+        green1 = temp1;
+        break;
+    case 2:					// switch around red and blue
+        temp0 = red0;
+        temp1 = red1;
+        red0 = blue0;
+        red1 = blue1;
+        blue0 = temp0;
+        blue1 = temp1;
+        break;
+    case 0:					// no switch
+        break;
+    }
+
+    output0 = ivec4(red0 << 4, green0 << 4, blue0 << 4, 0x7800);
+    output1 = ivec4(red1 << 4, green1 << 4, blue1 << 4, 0x7800);
+}
+
+
+void rgba_unpack(int vidx, int quantization_level, out ivec4 output0, out ivec4 output1)
+{
+    int order = rgb_unpack(vidx, quantization_level, output0, output1);
+    if (order == 0)
+    {
+        output0.w = color_unquantization_tables_[quantization_level][H.color_values[vidx][6]];
+        output1.w = color_unquantization_tables_[quantization_level][H.color_values[vidx][7]];
+    }
+    else
+    {
+        output0.w = color_unquantization_tables_[quantization_level][H.color_values[vidx][7]];
+        output1.w = color_unquantization_tables_[quantization_level][H.color_values[vidx][6]];
+    }
+}
+
+void rgba_delta_unpack(int vidx, int quantization_level, out ivec4 output0, out ivec4 output1)
+{
+    int a0 = color_unquantization_tables_[quantization_level][H.color_values[vidx][6]];
+    int a1 = color_unquantization_tables_[quantization_level][H.color_values[vidx][7]];
+    a0 |= (a1 & 0x80) << 1;
+    a1 &= 0x7F;
+    if ((a1 & 0x40) != 0)
+        a1 -= 0x80;
+    a0 >>= 1;
+    a1 >>= 1;
+    a1 += a0;
+
+    if (a1 < 0)
+        a1 = 0;
+    else if (a1 > 255)
+        a1 = 255;
+
+    int order = rgb_delta_unpack(vidx, quantization_level, output0, output1);
+    if (order == 0)
+    {
+        output0.w = a0;
+        output1.w = a1;
+    }
+    else
+    {
+        output0.w = a1;
+        output1.w = a0;
+    }
+}
+
+void hdr_rgb_ldr_alpha_unpack3(int vidx, int quantization_level, out ivec4 output0, out ivec4 output1)
+{
+    hdr_rgb_unpack3(vidx, quantization_level, output0, output1);
+
+    int v6 = color_unquantization_tables_[quantization_level][H.color_values[vidx][6]];
+    int v7 = color_unquantization_tables_[quantization_level][H.color_values[vidx][7]];
+    output0.w = v6;
+    output1.w = v7;
+}
+
+void hdr_rgb_hdr_alpha_unpack3(int vidx, int quantization_level, out ivec4 output0, out ivec4 output1)
+{
+    hdr_rgb_unpack3(vidx, quantization_level, output0, output1);
+
+    int a0, a1;
+
+    int v6 = color_unquantization_tables_[quantization_level][H.color_values[vidx][6]];
+    int v7 = color_unquantization_tables_[quantization_level][H.color_values[vidx][7]];
+
+    int selector = ((v6 >> 7) & 1) | ((v7 >> 6) & 2);
+    v6 &= 0x7F;
+    v7 &= 0x7F;
+    if (selector == 3)
+    {
+        a0 = v6 << 5;
+        a1 = v7 << 5;
+    }
+    else
+    {
+        v6 |= (v7 << (selector + 1)) & 0x780;
+        v7 &= (0x3f >> selector);
+        v7 ^= 32 >> selector;
+        v7 -= 32 >> selector;
+        v6 <<= (4 - selector);
+        v7 <<= (4 - selector);
+        v7 += v6;
+
+        if (v7 < 0)
+            v7 = 0;
+        else if (v7 > 0xFFF)
+            v7 = 0xFFF;
+
+        a0 = v6;
+        a1 = v7;
+    }
+
+    a0 <<= 4; a0 &= 0xFFFF;
+    a1 <<= 4; a1 &= 0xFFFF;
+
+    //hdr_alpha_unpack(input + 6, quantization_level, &alpha0, &alpha1);
+
+    output0.w = a0;
+    output1.w = a1;
+}
+
+
+void unpack_color_endpoints(/*astc_decode_mode decode_mode, */int format, int quantization_level, int vidx, out int rgb_hdr, out int alpha_hdr, /*int *nan_endpoint,*/ out ivec4 output0_, out ivec4 output1_)
+{
+    switch (format)
+    {
+    case FMT_LUMINANCE:
+        rgb_hdr = 0;
+        alpha_hdr = 0;
+        luminance_unpack(vidx, quantization_level, output0_, output1_);
+        break;
+
+    case FMT_LUMINANCE_DELTA:
+        rgb_hdr = 0;
+        alpha_hdr = 0;
+        luminance_delta_unpack(vidx, quantization_level, output0_, output1_);
+        break;
+
+    case FMT_HDR_LUMINANCE_SMALL_RANGE:
+        rgb_hdr = 1;
+        alpha_hdr = -1;
+        hdr_luminance_small_range_unpack(vidx, quantization_level, output0_, output1_);
+        break;
+
+    case FMT_HDR_LUMINANCE_LARGE_RANGE:
+        rgb_hdr = 1;
+        alpha_hdr = -1;
+        hdr_luminance_large_range_unpack(vidx, quantization_level, output0_, output1_);
+        break;
+
+    case FMT_LUMINANCE_ALPHA:
+        rgb_hdr = 0;
+        alpha_hdr = 0;
+        luminance_alpha_unpack(vidx, quantization_level, output0_, output1_);
+        break;
+
+    case FMT_LUMINANCE_ALPHA_DELTA:
+        rgb_hdr = 0;
+        alpha_hdr = 0;
+        luminance_alpha_delta_unpack(vidx, quantization_level, output0_, output1_);
+        break;
+
+    case FMT_RGB_SCALE:
+        rgb_hdr = 0;
+        alpha_hdr = 0;
+        rgb_scale_unpack(vidx, quantization_level, output0_, output1_);
+        break;
+
+    case FMT_RGB_SCALE_ALPHA:
+        rgb_hdr = 0;
+        alpha_hdr = 0;
+        rgb_scale_alpha_unpack(vidx, quantization_level, output0_, output1_);
+        break;
+
+    case FMT_HDR_RGB_SCALE:
+        rgb_hdr = 1;
+        alpha_hdr = -1;
+        hdr_rgbo_unpack3(vidx, quantization_level, output0_, output1_);
+        break;
+
+    case FMT_RGB:
+        rgb_hdr = 0;
+        alpha_hdr = 0;
+        rgb_unpack(vidx, quantization_level, output0_, output1_);
+        break;
+
+    case FMT_RGB_DELTA:
+        rgb_hdr = 0;
+        alpha_hdr = 0;
+        rgb_delta_unpack(vidx, quantization_level, output0_, output1_);
+        break;
+
+    case FMT_HDR_RGB:
+        rgb_hdr = 1;
+        alpha_hdr = -1;
+        hdr_rgb_unpack3(vidx, quantization_level, output0_, output1_);
+        break;
+
+    case FMT_RGBA:
+        rgb_hdr = 0;
+        alpha_hdr = 0;
+        rgba_unpack(vidx, quantization_level, output0_, output1_);
+        break;
+
+    case FMT_RGBA_DELTA:
+        rgb_hdr = 0;
+        alpha_hdr = 0;
+        rgba_delta_unpack(vidx, quantization_level, output0_, output1_);
+        break;
+
+    case FMT_HDR_RGB_LDR_ALPHA:
+        rgb_hdr = 1;
+        alpha_hdr = 0;
+        hdr_rgb_ldr_alpha_unpack3(vidx, quantization_level, output0_, output1_);
+        break;
+
+    case FMT_HDR_RGBA:
+        rgb_hdr = 1;
+        alpha_hdr = 1;
+        hdr_rgb_hdr_alpha_unpack3(vidx, quantization_level, output0_, output1_);
+        break;
+
+    default:
+        rgb_hdr = 0;
+        alpha_hdr = 0;
+        output0_ = ivec4(255, 0, 255, 255);
+        output1_ = ivec4(255, 0, 255, 255);
+        break;
+        //ASTC_CODEC_INTERNAL_ERROR;
+    }
+
+    if (alpha_hdr == -1)
+    {
+        // TODO
+        int alpha_force_use_of_hdr = 1;
+        if (alpha_force_use_of_hdr != 0)
+        {
+            output0_.w = 0x7800;
+            output1_.w = 0x7800;
+            alpha_hdr = 1;
+        }
+        else
+        {
+            output0_.w = 0x00FF;
+            output1_.w = 0x00FF;
+            alpha_hdr = 0;
+        }
+    }
+
+    if (rgb_hdr == 0)
+    {
+        output0_.x *= 257;
+        output0_.y *= 257;
+        output0_.z *= 257;
+        output1_.x *= 257;
+        output1_.y *= 257;
+        output1_.z *= 257;
+    }
+    if (alpha_hdr == 0)
+    {
+        output0_.w *= 257;
+        output1_.w *= 257;
+    }
+}
+
+void decode_color() {
+    if (H.block_mode < 0) {
+        return;
+    }
+    if (H.error_block != 0) {
+        return;
+    }
+    int weight_count = decimation_tables[block_modes[H.block_mode].decimation_mode_].num_weights;
+    int weight_quantization_method = block_modes[H.block_mode].quantization_mode_;
+    int is_dual_plane = block_modes[H.block_mode].is_dual_plane_;
+
+    int real_weight_count = is_dual_plane != 0 ? 2 * weight_count : weight_count;
+
+    int partition_count = int(read_bits(11, 2) + 1);
+
+    H.partition_count = partition_count;
+
+    int bits_for_weights = compute_ise_bitcount(real_weight_count,
+        weight_quantization_method);
+
+    int below_weights_pos = 128 - bits_for_weights;
+
+    // get hold of color component for second-plane in the case of dual plane of weights.
+    if (is_dual_plane != 0) {
+        H.plane2_color_component = int(read_bits(below_weights_pos - 2, 2));
+    }
+
+    H.duel_weights = (is_dual_plane != 0 && ((H.plane2_color_component & (~3)) == 0)) ? 1 : 0;
+
+    if (is_dual_plane != 0 && partition_count == 4) {
+        H.error_block = 1;
+        return;
+    }
+
+    //H.color_formats_matched = 0;
+
+    // then, determine the format of each endpoint pair
+    uint color_formats[4];
+    int encoded_type_highpart_size = 0;
+
+    if (partition_count == 1)
+    {
+        color_formats[0] = read_bits(13, 4);
+        H.partition_index = 0;
+    }
+    else
+    {
+        encoded_type_highpart_size = (3 * partition_count) - 4;
+        below_weights_pos -= encoded_type_highpart_size;
+        uint encoded_type = read_bits(13 + PARTITION_BITS, 6) |
+            (read_bits(below_weights_pos, encoded_type_highpart_size) << 6);
+        uint baseclass = encoded_type & 0x3;
+        if (baseclass == 0)
+        {
+            for (int i = 0; i < partition_count; i++)
+            {
+                color_formats[i] = (encoded_type >> 2) & 0xF;
+            }
+            below_weights_pos += encoded_type_highpart_size;
+            //H.color_formats_matched = 1;
+            encoded_type_highpart_size = 0;
+        }
+        else
+        {
+            int bitpos = 2;
+            baseclass--;
+            for (int i = 0; i < partition_count; i++)
+            {
+                color_formats[i] = (((encoded_type >> bitpos) & 1) + baseclass) << 2;
+                bitpos++;
+            }
+            for (int i = 0; i < partition_count; i++)
+            {
+                color_formats[i] |= (encoded_type >> bitpos) & 3;
+                bitpos += 2;
+            }
+        }
+        H.partition_index = int(read_bits(13, 6) | (read_bits(19, PARTITION_BITS - 6) << 6));
+    }
+
+    for (int i = 0; i < partition_count; i++) {
+        H.color_formats[i] = int(color_formats[i]);
+    }
+
+    // then, determine the number of integers we need to unpack for the endpoint pairs
+    uint color_integer_count = 0;
+    for (int i = 0; i < partition_count; i++)
+    {
+        uint endpoint_class = color_formats[i] >> 2;
+        color_integer_count += (endpoint_class + 1) * 2;
+    }
+
+    if (color_integer_count > 18) {
+        H.error_block = 1;
+        return;
+    }
+
+    int color_bits_arr[5] = { -1, 115 - 4, 113 - 4 - PARTITION_BITS,
+        113 - 4 - PARTITION_BITS, 113 - 4 - PARTITION_BITS };
+
+    int color_bits = color_bits_arr[partition_count] - bits_for_weights - encoded_type_highpart_size;
+    if (is_dual_plane != 0) {
+        color_bits -= 2;
+    }
+    if (color_bits < 0) {
+        color_bits = 0;
+    }
+
+    int color_quantization_level = color_quantization_mode_table[color_integer_count >> 1][color_bits];
+    H.color_quantization_level = color_quantization_level;
+    if (color_quantization_level < 4) {
+        H.error_block = 1;
+        return;
+    }
+
+    if (partition_count == 1) {
+        decode_ise(color_quantization_level, 0, int(color_integer_count), 0, 1,
+            17);
+
+    }
+    else {
+        decode_ise(color_quantization_level, 0, int(color_integer_count), 0, 1,
+            19 + PARTITION_BITS);
+    }
+
+    // and distribute them over the endpoint types
+    int valuecount_to_decode = 0;
+
+    for (int i = 0; i < partition_count; i++)
+    {
+        int vals = int(2 * (color_formats[i] >> 2) + 2);
+        for (int j = 0; j < vals; j++)
+            H.color_values[i][j] = H.ise_values[1][j + valuecount_to_decode];
+        valuecount_to_decode += vals;
+    }
+
+
+    if (H.error_block != 0) {
+        return;
+    }
+
+    //return;
+
+    switch (partition_count) {
+    case 2:
+        H.partition_index = 1 + H.partition_index;
+        break;
+    case 3:
+        H.partition_index = 1025 + H.partition_index;
+        break;
+    case 4:
+        H.partition_index = 2049 + H.partition_index;
+        break;
+    default:
+        break;
+    }
+}
+
+void fill_header() {
+    uint block_idx = gl_NumWorkGroups.x * gl_WorkGroupID.y + gl_WorkGroupID.x;
+    H.R[0] = Raw[block_idx * 4];
+    H.R[1] = Raw[block_idx * 4 + 1];
+    H.R[2] = Raw[block_idx * 4 + 2];
+    H.R[3] = Raw[block_idx * 4 + 3];
+    H.RR[0] = bitfieldReverse(H.R[3]);
+    H.RR[1] = bitfieldReverse(H.R[2]);
+    H.RR[2] = bitfieldReverse(H.R[1]);
+    H.RR[3] = bitfieldReverse(H.R[0]);
+
+    H.error_block = 0;
+    H.block_mode = int(H.R[0] & 0x7FF);
+
+    if ((H.block_mode & 0x1ff) == 0x1FC) {
+        // void-extent block!
+
+        if ((H.block_mode & 0x200) != 0) {
+            H.block_mode = -1; // floating-point
+        }
+        else {
+            H.block_mode = -2; // unorm16
+        }
+        H.partition_count = 0;
+        for (int i = 0; i < 4; ++i) {
+            H.color_formats[i] = int(read_short(i + 4));
+        }
+
+        uint rsvbits = read_bits(10, 2);
+        if (rsvbits != 3) {
+            H.error_block = 1;
+        }
+
+        uint vx_low_s = read_bits(12, 8) | (read_bits(12 + 8, 5) << 8);
+        uint vx_high_s = read_bits(25, 8) | (read_bits(25 + 8, 5) << 8);
+        uint vx_low_t = read_bits(38, 8) | (read_bits(38 + 8, 5) << 8);
+        uint vx_high_t = read_bits(51, 8) | (read_bits(51 + 8, 5) << 8);
+
+        bool all_ones = vx_low_s == 0x1FFF && vx_high_s == 0x1FFF && vx_low_t == 0x1FFF && vx_high_t == 0x1FFF;
+
+        if ((vx_low_s >= vx_high_s || vx_low_t >= vx_high_t) && !all_ones) {
+            H.error_block = 1;
+        }
+        return;
+    }
+
+    if (block_modes[H.block_mode].permit_decode_ == 0)
+    {
+        H.error_block = 1;
+        return;
+    }
+
+}
+
+void unpack_color_endpoint(int i) {
+    int rgb_hdr, alpha_hdr;
+    ivec4 c0, c1;
+    unpack_color_endpoints(
+        H.color_formats[i],
+        H.color_quantization_level,
+        i,
+        rgb_hdr,
+        alpha_hdr,
+        c0, c1);
+    H.rgb_hdr_endpoint[i] = (rgb_hdr != 0) ? 1 : 0;
+    H.alpha_hdr_endpoint[i] = (alpha_hdr != 0) ? 1 : 0;
+    H.color_endpoint0_[i] = c0;
+    H.color_endpoint1_[i] = c1 - c0;
+}
+
+void decode_weight_sep3(uint texel_to_get, out int w1, out int w2) {
+    int decimation_mode = block_modes[H.block_mode].decimation_mode_;
+    int weights_to_evaluate = decimation_tables[decimation_mode].texel_num_weights_[texel_to_get];
+
+    int weight_quantization_method = block_modes[H.block_mode].quantization_mode_;
+    int bits, trits, quints;
+    find_number_of_bits_trits_quints(weight_quantization_method, bits, trits, quints);
+
+    int segment_l = 1;
+    int segment_bits = bits;
+    if (trits > 0) { segment_l = 5; segment_bits = bits * 5 + 8; }
+    else if (quints > 0) { segment_l = 3; segment_bits = bits * 3 + 7; }
+
+    int cur_segment = -1;
+    int is_dual_plane = block_modes[H.block_mode].is_dual_plane_;
+
+    int summed_value1 = 8;
+    int summed_value2 = 8;
+    for (int i = 0; i < weights_to_evaluate; i++)
+    {
+        int idx = decimation_tables[decimation_mode].texel_weights_[texel_to_get][i];
+        int segment = idx / segment_l;
+
+        if (segment != cur_segment) {
+            int real_weight_count = segment_l;
+            int real_weight_start = segment * segment_l;
+            int bit_offset = segment * segment_bits;
+            if (is_dual_plane != 0) {
+                real_weight_count = real_weight_count << 1;
+                real_weight_start = real_weight_start << 1;
+                bit_offset = bit_offset << 1;
+            }
+
+            decode_ise(weight_quantization_method, real_weight_start, real_weight_count, 1, 0, bit_offset);
+            cur_segment = segment;
+        }
+
+        int tidx = is_dual_plane == 0 ? idx : idx * 2;
+        summed_value1 += quant_and_xfer_tables[weight_quantization_method].unquantized_value[H.ise_values[0][tidx]] *
+            decimation_tables[decimation_mode].texel_weights_int_[texel_to_get][i];
+
+        if (is_dual_plane != 0)
+        {
+            summed_value2 += quant_and_xfer_tables[weight_quantization_method].unquantized_value[H.ise_values[0][tidx + 1]] *
+                decimation_tables[decimation_mode].texel_weights_int_[texel_to_get][i];
+        }
+
+    }
+
+    w1 = summed_value1 >> 4;
+    w2 = summed_value2 >> 4;
+}
+
+
+
+void main() {
+    ivec2 pixel_coords = ivec2(gl_GlobalInvocationID.xy) + u_pushConstant.offset;
+    uint localidx = gl_LocalInvocationID.y * gl_WorkGroupSize.x + gl_LocalInvocationID.x;
+    if (localidx == 0) {
+        fill_header();
+        decode_color();
+        memoryBarrierShared();
+    }
+    barrier();
+
+    if (localidx < H.partition_count) {
+        unpack_color_endpoint(int(localidx));
+        memoryBarrierShared();
+    }
+    barrier();
+
+    if (H.error_block != 0) {
+        imageStore(tex, pixel_coords, vec4(1.0, 0.0, 1.0, 1.0));
+        return;
+    }
+
+    if (H.block_mode == -2) {
+        vec4 srgb = vec4(
+            float(H.color_formats[0]) / 65535.0,
+            float(H.color_formats[1]) / 65535.0,
+            float(H.color_formats[2]) / 65535.0,
+            float(H.color_formats[3]) / 65535.0
+        );
+
+#ifdef SRGB
+    srgb.rgb = pow(srgb.rgb, vec3(2.2, 2.2, 2.2));
+#endif
+        imageStore(tex, pixel_coords, srgb);
+        return;
+    }
+
+    if (H.block_mode == -1) {
+        // TODO
+        imageStore(tex, pixel_coords, vec4(1.0, 0.0, 1.0, 1.0));
+        return;
+    }
+
+    uint i = gl_LocalInvocationID.y * gl_WorkGroupSize.x + gl_LocalInvocationID.x;
+    int partition_ = pi_one[H.partition_index].partition_of_texel_[i];
+
+    int ww1, ww2;
+    decode_weight_sep3(i, ww1, ww2);
+    int w1[4] = { ww1, ww1, ww1, ww1 };
+    if (H.duel_weights != 0) {
+        w1[H.plane2_color_component] = ww2;
+    }
+
+    vec4 r;
+    if (H.rgb_hdr_endpoint[partition_] != 0) {
+        // TODO
+        r.r = 1.0;
+        r.g = 0.0;
+        r.b = 1.0;
+    }
+    else {
+        r.r = float((H.color_endpoint0_[partition_].r + ((H.color_endpoint1_[partition_].r * w1[0]) >> 6)) >> 8) / 255.0;
+        r.g = float((H.color_endpoint0_[partition_].g + ((H.color_endpoint1_[partition_].g * w1[1]) >> 6)) >> 8) / 255.0;
+        r.b = float((H.color_endpoint0_[partition_].b + ((H.color_endpoint1_[partition_].b * w1[2]) >> 6)) >> 8) / 255.0;
+    }
+
+    if (H.alpha_hdr_endpoint[partition_] != 0) {
+        // TODO
+        r.a = 1.0;
+    }
+    else {
+        r.a = float((H.color_endpoint0_[partition_].a + ((H.color_endpoint1_[partition_].a * w1[3]) >> 6)) >> 8) / 255.0;
+    }
+
+#ifdef SRGB
+    r.rgb = pow(r.rgb, vec3(2.2, 2.2, 2.2));
+#endif
+    imageStore(tex, pixel_coords, r);
+}
+
+)"
+
