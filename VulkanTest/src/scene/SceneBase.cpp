@@ -1,4 +1,6 @@
 #include "SceneBase.h"
+#define NOMINMAX
+#include <Windows.h>
 
 void SceneBase::run() {
 	initWindow();

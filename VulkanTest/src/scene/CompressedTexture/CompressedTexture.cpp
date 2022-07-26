@@ -1,7 +1,11 @@
+#define NOMINMAX
 #include "CompressedTexture.h"
 #include <unordered_map>
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <../common/tiny_obj_loader.h>
+
+
+#include "image_util/loadimage.h"
 
 void CompressedTexture::cleanup() {
 	cleanupSwapChain();
@@ -1461,6 +1465,11 @@ void CompressedTexture::GenerateCompressedTextureImage() {
 	vkFreeMemory(device, stagingBufferMemory, nullptr);
 }
 
+void TestCPU(unsigned char *data) {
+	unsigned char result[8 * 8 * 4];
+	angle::LoadASTCToRGBA8<8, 8, false>(8, 8, 1, data, 16, 16, result, 8 * 4, 8 * 8 * 4);
+}
+
 void CompressedTexture::GenerateCompressedTextureImageASTC_old() {
 
 	std::ifstream astcFile;
@@ -1476,9 +1485,13 @@ void CompressedTexture::GenerateCompressedTextureImageASTC_old() {
 	pbuf->sgetn(astcBuffer, fileSize);
 
 	astcFile.close();
+	astcBuffer = astcBuffer + 98784;
+
+	TestCPU((unsigned char*)astcBuffer);
 
 	// ============etc image create ====================
-	int texWidth = 1334, texHeight = 750;
+	//int texWidth = 1024, texHeight = 1024;
+	int texWidth = 8, texHeight = 8;
 	int astcWidth = (texWidth + 8 - 1) / 8, astcHeight = (texHeight + 8 - 1) / 8;
 	VkDeviceSize astcImageSize = astcWidth * astcHeight * 16;
 
@@ -1565,23 +1578,23 @@ void CompressedTexture::GenerateCompressedTextureImageASTC_old() {
 
 
 	/* Load Shader */
-	auto computeShaderCode = readFile("../VulkanTest/shaders/GL_COMPRESSED_RGBA_ASTC_8x8.spv");
+	auto computeShaderCode = readFile(R"(D:\WorkSpace\nemu-vulkan\nemu-graphics\mumu-angle\src\libANGLE\renderer\vulkan\vulkan_gpu\shaders\spv\GL_COMPRESSED_RGBA_ASTC_8x8.spv)");
 	VkShaderModule compShaderModule = createShaderModule(computeShaderCode);
 
 	/* test */
-	shader_spv::SpvData mShaderData = loadDecompressionShader("GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x8.spv");
+	//shader_spv::SpvData mShaderData = loadDecompressionShader("GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x8.spv");
 
 
-	for (int i = 0; i < computeShaderCode.size(); ++i) {
+	/*for (int i = 0; i < computeShaderCode.size(); ++i) {
 		if (computeShaderCode[i] != (char)mShaderData.base[i]) {
 			break;
 		}
-	}
+	}*/
 	VkShaderModuleCreateInfo shaderInfo = {};
 	shaderInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
 	shaderInfo.flags = 0;
-	shaderInfo.codeSize = mShaderData.size;
-	shaderInfo.pCode = reinterpret_cast<const uint32_t*>(mShaderData.base);
+	shaderInfo.codeSize = computeShaderCode.size();
+	shaderInfo.pCode = reinterpret_cast<const uint32_t*>(computeShaderCode.data());
 	//VkShaderModule compShaderModule;
 	if (vkCreateShaderModule(device, &shaderInfo, nullptr, &compShaderModule) != VK_SUCCESS) {
 		throw std::runtime_error("failed to create shader module!");

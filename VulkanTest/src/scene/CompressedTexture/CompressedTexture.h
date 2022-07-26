@@ -8,7 +8,7 @@ class CompressedTexture :public SceneBase {
 
 	const std::string MODEL_PATH = "../VulkanTest/res/model/viking_room.obj";
 	const std::string TEXTURE_PATH = "../VulkanTest/res/texture/viking_room.png";
-	const std::string ASTC_TEXTURE_PATH = "../VulkanTest/res/texture/harry.astc";
+	const std::string ASTC_TEXTURE_PATH = "../VulkanTest/res/texture/1.data";
 	const std::string ETC_TEXTURE_PATH = "../VulkanTest/res/texture/mrfz.etc";
 	const std::string GRASS = "../VulkanTest/res/texture/grass.png";
 
